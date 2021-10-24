@@ -1,8 +1,9 @@
-hunter
+wandex
 ======
 
-
-![hunter](https://raw.githubusercontent.com/rabite0/hunter-stuff/master/player.png)
+**2021-10-24**: It looks [hunter](https://github.com/rabite0/hunter) doesn't
+receive updates since May 2020. I decided to take a look into the issues and
+create a fork as my time permits. 
 
 NEW
 - [**FASTER**] hunter is now *much* faster
