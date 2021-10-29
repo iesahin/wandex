@@ -3,6 +3,9 @@ wandex
 
 ### News
 
+**2021-10-29**: Updated the LICENSE to CC0 from WTFPL. From now on, the updates
+to this repo are licensed under CC0. 
+
 **2021-10-24**: It looks [hunter](https://github.com/rabite0/hunter) doesn't
 receive updates since May 2020. I decided to take a look into the issues and
 create a fork as my time permits. 
@@ -17,7 +20,6 @@ NEW
 - [Graphics] High quality support for graphics using SIXEL/kitty protocols
 - [QuickActions] Added quick action creator/customizer
 - [Previews] New and improved preview customization
-- [**[IRC channel](https://webchat.freenode.net/?channels=hunter)**] Problems? Bugs? Praise? Chat with us: [#hunter @ Freenode](https://webchat.freenode.net/?channels=hunter)!
 
 
 
