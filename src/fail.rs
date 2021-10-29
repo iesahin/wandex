@@ -119,7 +119,7 @@ impl HError {
         Err(HError::Quit)
     }
     pub fn wrong_ratio<T>(wnum: usize, ratio: Vec<usize>) -> HResult<T> {
-        Err(HError::HBoxWrongRatioError{ wnum: wnum, ratio: ratio })
+        Err(HError::HBoxWrongRatioError{ wnum, ratio })
     }
     pub fn no_widget<T>() -> HResult<T> {
         Err(HError::NoWidgetError)
@@ -136,11 +136,11 @@ impl HError {
         Err(HError::TagsNotLoadedYetError)
     }
     pub fn undefined_key<T>(key: Key) -> HResult<T> {
-        Err(HError::WidgetUndefinedKeyError { key: key })
+        Err(HError::WidgetUndefinedKeyError { key })
     }
     pub fn wrong_directory<T>(path: PathBuf, dir: PathBuf) -> HResult<T> {
-        Err(HError::WrongDirectoryError{ path: path,
-                                         dir: dir })
+        Err(HError::WrongDirectoryError{ path,
+                                         dir })
 
     }
     pub fn preview_failed<T>(file: &crate::files::File) -> HResult<T> {
@@ -254,20 +254,21 @@ where E: Into<HError> + Clone {
     }
 }
 
-impl<E> ErrorLog for E
-where E: Into<HError> + Clone {
-    fn log(self) {
-        let err: HError = self.into();
-        put_log(&err).ok();
-
-    }
-    fn log_and(self) -> Self {
-        let err: HError = self.clone().into();
-        put_log(&err).ok();
-        self
-    }
-}
-
+// The following requires nightly
+// impl<E> ErrorLog for E
+// where E: Into<HError> + Clone {
+//     fn log(self) {
+//         let err: HError = self.into();
+//         put_log(&err).ok();
+//
+//     }
+//     fn log_and(self) -> Self {
+//         let err: HError = self.clone().into();
+//         put_log(&err).ok();
+//         self
+//     }
+// }
+//
 
 
 
@@ -287,14 +288,14 @@ impl From<failure::Error> for HError {
 
 impl From<std::sync::mpsc::TryRecvError> for HError {
     fn from(error: std::sync::mpsc::TryRecvError) -> Self {
-        let err = HError::ChannelTryRecvError { error: error };
+        let err = HError::ChannelTryRecvError { error };
         err
     }
 }
 
 impl From<std::sync::mpsc::RecvError> for HError {
     fn from(error: std::sync::mpsc::RecvError) -> Self {
-        let err = HError::ChannelRecvError { error: error };
+        let err = HError::ChannelRecvError { error };
         err
     }
 }
@@ -327,16 +328,17 @@ impl<T> From<std::sync::TryLockError<T>> for HError {
     }
 }
 
-impl From<std::option::NoneError> for HError {
-    fn from(_error: std::option::NoneError) -> Self {
-        let err = HError::NoneError;
-        err
-    }
-}
+// The following requires nightly
+// impl From<std::option::NoneError> for HError {
+//     fn from(_error: std::option::NoneError) -> Self {
+//         let err = HError::NoneError;
+//         err
+//     }
+// }
 
 impl From<std::path::StripPrefixError> for HError {
     fn from(error: std::path::StripPrefixError) -> Self {
-        let err = HError::StripPrefixError{error: error };
+        let err = HError::StripPrefixError{ error };
         err
     }
 }
