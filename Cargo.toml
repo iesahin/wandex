@@ -1,16 +1,16 @@
 [package]
-name = "hunter"
+name = "wandex"
 version = "1.3.5"
-authors = ["rabite0"]
+authors = ["rabite0", "iesahin"]
 edition = "2018"
-description = "Fast, lag-free terminal file browser"
-homepage = "https://github.com/rabite0/hunter"
-repository = "https://github.com/rabite0/hunter"
+description = "Reincarnation of fast, lag-free terminal file browser hunter"
+homepage = "https://github.com/iesahin/wandex"
+repository = "https://github.com/iesahin/wandex"
 readme = "README.md"
 license = "WTFPL"
 keywords = ["cli", "terminal", "file"]
 categories = ["command-line-utilities"]
-default-run = "hunter"
+default-run = "wandex"
 
 
 [dependencies]
@@ -74,18 +74,13 @@ img = ["image"]
 sixel = ["sixel-rs", "sixel-sys"]
 
 [[bin]]
-name = "hunter"
+name = "wandex"
 path = "src/main.rs"
 
 [[bin]]
-name = "hunter-media"
-path = "src/hunter-media.rs"
+name = "wandex-media"
+path = "src/wandex-media.rs"
 required-features = ["img"]
-
-
-
-
-
 
 # These options increase performance and generate a smaller binary
 [profile.release]
