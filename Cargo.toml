@@ -67,7 +67,7 @@ termion = "1.5"
 rustc_version = "0.4.0"
 
 [features]
-default = []
+default = ["video", "image", "sixel"]
 video = ["gstreamer", "gstreamer-app", "gstreamer-player","gstreamer-video", "gstreamer-base"]
 img = ["image"]
 sixel = ["sixel-rs", "sixel-sys"]
