@@ -7,7 +7,7 @@ description = "Reincarnation of fast, lag-free terminal file browser hunter"
 homepage = "https://github.com/iesahin/wandex"
 repository = "https://github.com/iesahin/wandex"
 readme = "README.md"
-license = "WTFPL"
+license = "CC0"
 keywords = ["cli", "terminal", "file"]
 categories = ["command-line-utilities"]
 default-run = "wandex"
@@ -15,14 +15,14 @@ default-run = "wandex"
 
 [dependencies]
 termion = "1.5"
-unicode-width = "0.1.5"
+unicode-width = "0.1"
 lazy_static = "1"
-natord = "1.0.9"
-lscolors = { version = "0.6.0", features = [ "ansi_term" ]  }
-tree_magic_fork = "0.2.2"
+natord = "1.0"
+lscolors = { version = "0.8", features = [ "ansi_term" ]  }
+tree_magic_fork = "0.2"
 rayon = "1.3"
-dirs-2 = "1.1.0"
-users = "0.8"
+dirs-2 = "3.0"
+users = "0.11"
 chrono = "0.4"
 libc = "0.2.51"
 failure = "0.1.5"
@@ -37,38 +37,38 @@ osstrtools = "0.2"
 pathbuftools = "0.1"
 clap = "2.33"
 mime = "0.3.13"
-base64 = "0.10.1"
-strum = "0.15"
-strum_macros = "0.15"
-rust-ini = "0.13"
-derivative = "1.0.3"
-itertools = "0.8"
-nix = "0.17"
+base64 = "0.13"
+strum = "0.22"
+strum_macros = "0.22"
+rust-ini = "0.17"
+derivative = "2.2"
+itertools = "0.10"
+nix = "0.23"
 strip-ansi-escapes = "0.1"
-crossbeam = "0.7"
-parking_lot = "0.10"
+crossbeam = "0.8"
+parking_lot = "0.11"
 
 
-image = { version = "0.21.1", optional = true }
-gstreamer = { version = "0.14", optional = true }
-gstreamer-app = { version = "0.14", optional = true }
-gstreamer-player = { version = "0.14", optional = true }
-gstreamer-video = { version = "0.14", optional = true }
-gstreamer-base = { version = "0.14", optional = true }
-sixel-sys = { version="0.3.1" , optional = true }
+image = { version = "0.23", optional = true }
+gstreamer = { version = "0.17", optional = true }
+gstreamer-app = { version = "0.17", optional = true }
+gstreamer-player = { version = "0.17", optional = true }
+gstreamer-video = { version = "0.17", optional = true }
+gstreamer-base = { version = "0.17", optional = true }
+sixel-sys = { version="0.3" , optional = true }
 
 # Need extra section to avoid conflict with features
 [dependencies.sixel-rs]
 package = "sixel"
-version = "0.3.2"
+version = "0.3"
 optional = true
 
 [build-dependencies]
 termion = "1.5"
-rustc_version = "0.2.3"
+rustc_version = "0.4.0"
 
 [features]
-default = ["img", "video", "sixel"]
+default = []
 video = ["gstreamer", "gstreamer-app", "gstreamer-player","gstreamer-video", "gstreamer-base"]
 img = ["image"]
 sixel = ["sixel-rs", "sixel-sys"]
