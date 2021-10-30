@@ -122,7 +122,7 @@ impl History {
         self.load()?;
         let history = self.history.get(htype).ok_or(WError::NoneError)?;
         let mut position = self.position;
-        let hist_len = &history.len();
+        let hist_len = history.len();
 
         if hist_len == 0 {
             return Err(WError::NoHistoryError);
@@ -132,11 +132,11 @@ impl History {
         }
 
         if let Some(position) = position {
-            let historic = (history?[position]).clone();
+            let historic = (history[position]).clone();
             self.position = Some(position + 1);
             Ok(historic)
         } else {
-            let historic = (history?[0]).clone();
+            let historic = (history[0]).clone();
             self.position = Some(1);
             Ok(historic)
         }

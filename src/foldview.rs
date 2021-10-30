@@ -59,7 +59,7 @@ impl From<&WError> for LogEntry {
         .lines()
         .take(1)
         .collect();
-        let mut content = format!(
+        let content = format!(
             "{}{}{}: {}\n",
             term::color_green(),
             time.format("%F %R"),

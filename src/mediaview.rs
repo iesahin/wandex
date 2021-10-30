@@ -47,6 +47,12 @@ lazy_static! {
     static ref AUTOPLAY: Arc<RwLock<bool>> = Arc::new(RwLock::new(true));
 }
 
+type PreviewRunnerFunc = Box<
+    dyn FnOnce(bool, bool, Arc<Mutex<usize>>, Arc<Mutex<usize>>, Arc<Mutex<usize>>) -> WResult<()>
+        + Send
+        + 'static,
+>;
+
 pub struct MediaView {
     core: WidgetCore,
     imgview: Arc<Mutex<ImgView>>,
@@ -59,19 +65,7 @@ pub struct MediaView {
     duration: Arc<Mutex<usize>>,
     stale: Stale,
     process: Arc<Mutex<Option<Child>>>,
-    preview_runner: Option<
-        Box<
-            dyn FnOnce(
-                    bool,
-                    bool,
-                    Arc<Mutex<usize>>,
-                    Arc<Mutex<usize>>,
-                    Arc<Mutex<usize>>,
-                ) -> WResult<()>
-                + Send
-                + 'static,
-        >,
-    >,
+    preview_runner: Option<PreviewRunnerFunc>,
 }
 
 #[derive(Clone, Debug)]
@@ -119,7 +113,7 @@ impl MediaView {
         let media_previewer = core.config().media_previewer;
         let g_mode = core.config().graphics;
 
-        let run_preview = Box::new(
+        let run_preview: PreviewRunnerFunc = Box::new(
             move |auto,
                   mute,
                   height: Arc<Mutex<usize>>,
@@ -273,7 +267,7 @@ impl MediaView {
     }
 
     pub fn start_video(&mut self) -> WResult<()> {
-        let runner = self.preview_runner.take();
+        let runner: Option<PreviewRunnerFunc> = self.preview_runner.take();
 
         if runner.is_some() {
             let stale = self.stale.clone();
