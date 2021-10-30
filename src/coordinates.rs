@@ -1,9 +1,9 @@
-use crate::fail::HResult;
+use crate::fail::WResult;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Size(pub (u16, u16));
+pub struct Size((u16, u16));
 #[derive(Debug, Clone, PartialEq)]
-pub struct Position(pub (u16, u16));
+pub struct Position((u16, u16));
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Coordinates {
@@ -112,7 +112,7 @@ impl Coordinates {
         ((xsize-1) as usize, (ysize-1) as usize)
     }
 
-    pub fn size_pixels(&self) -> HResult<(usize, usize)> {
+    pub fn size_pixels(&self) -> WResult<(usize, usize)> {
         let (xsize, ysize) = self.size_u();
         let (cols, rows) = crate::term::size()?;
         let (xpix, ypix) = crate::term::size_pixels()?;

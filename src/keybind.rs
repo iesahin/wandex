@@ -7,7 +7,7 @@ use std::default::Default;
 use std::str::FromStr;
 use std::fmt::{Display, Debug};
 
-use crate::fail::{HError, HResult, KeyBindError, ErrorLog};
+use crate::fail::{WError, WResult, KeyBindError, ErrorLog};
 use crate::widget::Widget;
 
 
@@ -46,13 +46,13 @@ where
     type Action;
 
     fn search_in(&self) -> Bindings<Self::Action>;
-    fn do_action(&mut self, action: &Self::Action) -> HResult<()>;
+    fn do_action(&mut self, action: &Self::Action) -> WResult<()>;
 
-    fn movement(&mut self, _movement: &Movement) -> HResult<()> {
+    fn movement(&mut self, _movement: &Movement) -> WResult<()> {
         Err(KeyBindError::MovementUndefined)?
     }
 
-    fn do_key(&mut self, key: Key) -> HResult<()> {
+    fn do_key(&mut self, key: Key) -> WResult<()> {
         let gkey = AnyKey::from(key);
 
         // Moving takes priority
@@ -63,7 +63,7 @@ where
             .get(gkey) {
                 match self.movement(movement) {
                     Ok(()) => return Ok(()),
-                    Err(HError::KeyBind(KeyBindError::MovementUndefined)) => {}
+                    Err(WError::KeyBind(KeyBindError::MovementUndefined)) => {}
                     Err(e) => Err(e)?
                 }
             }
@@ -81,7 +81,7 @@ where
             }
         }
 
-        HError::undefined_key(key)
+        WError::undefined_key(key)
     }
 }
 
@@ -121,7 +121,7 @@ impl Default for KeyBinds {
 
 
 impl KeyBinds {
-    pub fn load() -> HResult<KeyBinds> {
+    pub fn load() -> WResult<KeyBinds> {
         let bindings_path = crate::paths::bindings_path()?;
         let ini = Ini::load_from_file_noescape(bindings_path)
             .map_err(KeyBindError::from)?;
@@ -381,7 +381,7 @@ where
         let msg = format!("Warning: Unsupported config parameter {:?} for {}",
                           param,
                           self);
-        HError::log::<()>(&msg).ok();
+        WError::log::<()>(&msg).ok();
         self
     }
 
@@ -395,7 +395,7 @@ where
         self
     }
 
-    fn parse_section(ini: &Ini) -> HResult<Bindings<Self>> {
+    fn parse_section(ini: &Ini) -> WResult<Bindings<Self>> {
         let section = ini.section(Some(Self::section()))?;
 
         let mut bindings = Bindings::new();
@@ -405,7 +405,7 @@ where
 
             let action = Self::from_str(action_str)
                 .map_err(|_| KeyBindError::WrongAction(action_str.to_string()))
-                .map_err(HError::from)
+                .map_err(WError::from)
                 .map(|act|
                      if let Some(cp) = config_param {
                          act.insert_config_param(cp)

@@ -4,7 +4,7 @@ use systemstat::data::Filesystem;
 use std::path::{Path, PathBuf, Component};
 use std::collections::HashMap;
 
-use crate::fail::{HResult, ErrorLog};
+use crate::fail::{WResult, ErrorLog};
 
 #[derive(Debug,Clone)]
 pub struct FsStat {
@@ -12,14 +12,14 @@ pub struct FsStat {
 }
 
 impl FsStat {
-    pub fn new() -> HResult<FsStat> {
+    pub fn new() -> WResult<FsStat> {
         let mut stats = FsStat { stats: HashMap::new() };
         stats.refresh().log();
 
         Ok(stats)
     }
 
-    pub fn refresh(&mut self) -> HResult<()> {
+    pub fn refresh(&mut self) -> WResult<()> {
         let sys = System::new();
         let mounts = sys.mounts()?;
 
@@ -35,7 +35,7 @@ impl FsStat {
         Ok(())
     }
 
-    pub fn find_fs(&self, path: &Path) -> HResult<&Filesystem> {
+    pub fn find_fs(&self, path: &Path) -> WResult<&Filesystem> {
         let candidates = self
             .stats
             .keys()

@@ -11,8 +11,7 @@ use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::ffi::OsStr;
 
-use failure;
-use failure::Fail;
+use thiserror::Error;
 use lscolors::LsColors;
 use tree_magic_fork;
 use users::{get_current_username,
@@ -20,7 +19,6 @@ use users::{get_current_username,
             get_user_by_uid,
             get_group_by_gid};
 use chrono::TimeZone;
-use failure::Error;
 use rayon::{ThreadPool, ThreadPoolBuilder};
 use natord::compare;
 use mime_guess;
@@ -32,7 +30,7 @@ use nix::{dir::*,
 use pathbuftools::PathBufTools;
 use async_value::{Async, Stale, StopIter};
 
-use crate::fail::{HResult, HError, ErrorLog};
+use crate::fail::{WResult, WError, ErrorLog};
 use crate::dirty::{DirtyBit, Dirtyable};
 use crate::widget::Events;
 use crate::icon::Icons;
@@ -96,15 +94,15 @@ pub fn stop_ticking() {
     IOTICK_CLIENTS.fetch_sub(1, Ordering::Relaxed);
 }
 
-#[derive(Fail, Debug, Clone)]
+#[derive(Error, Debug, Clone)]
 pub enum FileError {
-    #[fail(display = "Metadata still pending!")]
+    #[error("Metadata still pending!")]
     MetaPending,
-    #[fail(display = "Couldn't open directory! Error: {}", _0)]
-    OpenDir(#[cause] nix::Error),
-    #[fail(display = "Couldn't read files! Error: {}", _0)]
-    ReadFiles(#[cause] nix::Error),
-    #[fail(display = "Had problems with getdents64 in directory: {}", _0)]
+    #[error("Couldn't open directory! Error: {}", _0)]
+    OpenDir(nix::Error),
+    #[error("Couldn't read files! Error: {}", _0)]
+    ReadFiles(nix::Error),
+    #[error("Had problems with getdents64 in directory: {}", _0)]
     GetDents(String),
 }
 
@@ -119,8 +117,8 @@ pub fn get_pool() -> ThreadPool {
         .unwrap()
 }
 
-pub fn load_tags() -> HResult<()> {
-    std::thread::spawn(|| -> HResult<()> {
+pub fn load_tags() -> WResult<()> {
+    std::thread::spawn(|| -> WResult<()> {
         let tag_path = crate::paths::tagfile_path()?;
 
         if !tag_path.exists() {
@@ -140,7 +138,7 @@ pub fn load_tags() -> HResult<()> {
     Ok(())
 }
 
-pub fn import_tags() -> HResult<()> {
+pub fn import_tags() -> WResult<()> {
     let mut ranger_tags = crate::paths::ranger_path()?;
     ranger_tags.push("tagged");
 
@@ -151,7 +149,7 @@ pub fn import_tags() -> HResult<()> {
     Ok(())
 }
 
-pub fn check_tag(path: &PathBuf) -> HResult<bool> {
+pub fn check_tag(path: &PathBuf) -> WResult<bool> {
     tags_loaded()?;
     let tagged = TAGS.read()?.1.binary_search(path)
                                .map_or_else(|_| false,
@@ -159,10 +157,10 @@ pub fn check_tag(path: &PathBuf) -> HResult<bool> {
     Ok(tagged)
 }
 
-pub fn tags_loaded() -> HResult<()> {
+pub fn tags_loaded() -> WResult<()> {
     let loaded = TAGS.read()?.0;
     if loaded { Ok(()) }
-    else { HError::tags_not_loaded() }
+    else { WError::tags_not_loaded() }
 }
 
 #[derive(Derivative)]
@@ -449,7 +447,7 @@ pub fn from_getdents(fd: i32, path: &Path, nothidden: &AtomicUsize)  -> Result<V
                 break;
             } else if nread < 0 {
                 let pathstr = path.to_string_lossy().to_string();
-                HError::log::<()>(&format!("Couldn't read dents from: {}",
+                WError::log::<()>(&format!("Couldn't read dents from: {}",
                                            &pathstr)).ok();
                 break;
             }
@@ -488,7 +486,7 @@ pub fn from_getdents(fd: i32, path: &Path, nothidden: &AtomicUsize)  -> Result<V
 
                     // OOB!!!
                     if bpos + name_len > BUFFER_SIZE {
-                        HError::log::<()>(&format!("WARNING: Name for file was out of bounds in: {}",
+                        WError::log::<()>(&format!("WARNING: Name for file was out of bounds in: {}",
                                                    path.to_string_lossy())).ok();
                         return DentStatus::Err(FileError::GetDents(path.to_string_lossy().to_string()));
                     }
@@ -607,7 +605,7 @@ pub fn from_getdents(fd: i32, path: &Path, nothidden: &AtomicUsize)  -> Result<V
 impl Files {
     // Use getdents64 on Linux
     #[cfg(target_os = "linux")]
-    pub fn new_from_path_cancellable(path: &Path, stale: Stale) -> HResult<Files> {
+    pub fn new_from_path_cancellable(path: &Path, stale: Stale) -> WResult<Files> {
         use std::os::unix::io::AsRawFd;
 
         let nonhidden = AtomicUsize::default();
@@ -620,7 +618,7 @@ impl Files {
         let direntries = from_getdents(dir.as_raw_fd(), path, &nonhidden)?;
 
         if stale.is_stale()? {
-            HError::stale()?;
+            WError::stale()?;
         }
 
         let mut files = Files::default();
@@ -636,7 +634,7 @@ impl Files {
 
 
     #[cfg(not(target_os = "linux"))]
-    pub fn new_from_path_cancellable(path: &Path, stale: Stale) -> HResult<Files> {
+    pub fn new_from_path_cancellable(path: &Path, stale: Stale) -> WResult<Files> {
         use std::os::unix::io::AsRawFd;
 
         let nonhidden = AtomicUsize::default();
@@ -663,7 +661,7 @@ impl Files {
             .map_err(|e| FileError::ReadFiles(e))?;
 
         if stale.is_stale()? {
-            HError::stale()?;
+            WError::stale()?;
         }
 
         let mut files = Files::default();
@@ -959,19 +957,19 @@ impl Files {
             });
     }
 
-    pub fn ready_to_refresh(&self) -> HResult<bool> {
+    pub fn ready_to_refresh(&self) -> WResult<bool> {
         let pending = self.pending_events.read()?.len();
         let running = self.refresh.is_some();
         Ok(pending > 0 && !running)
     }
 
-    pub fn get_refresh(&mut self) -> HResult<Option<RefreshPackage>> {
+    pub fn get_refresh(&mut self) -> WResult<Option<RefreshPackage>> {
         if let Some(mut refresh) = self.refresh.take() {
             if refresh.is_ready() {
                 self.stale.as_ref().map(|s| s.set_fresh());
                 refresh.pull_async()?;
                 let mut refresh = refresh.value?;
-                self.files = refresh.new_files.take()?;
+                self.files = refresh.new_files.take().ok_or(WError::NoneError)?;
                 self.jobs.append(&mut refresh.jobs);
                 if refresh.new_len != self.len() {
                     self.len = refresh.new_len;
@@ -985,7 +983,7 @@ impl Files {
         return Ok(None)
     }
 
-    pub fn process_fs_events(&mut self, sender: Sender<Events>) -> HResult<()> {
+    pub fn process_fs_events(&mut self, sender: Sender<Events>) -> WResult<()> {
         let pending = self.pending_events.read()?.len();
 
         if pending > 0 {
@@ -1010,13 +1008,13 @@ impl Files {
         Ok(())
     }
 
-    pub fn path_in_here(&self, path: &Path) -> HResult<bool> {
+    pub fn path_in_here(&self, path: &Path) -> WResult<bool> {
         let dir = &self.directory.path;
         let path = if path.is_dir() { path } else { path.parent().unwrap() };
         if dir == path {
             Ok(true)
         } else {
-            HError::wrong_directory(path.into(), dir.to_path_buf())?
+            WError::wrong_directory(path.into(), dir.to_path_buf())?
         }
     }
 
@@ -1229,7 +1227,7 @@ impl File {
         }
     }
 
-    pub fn new_from_path(path: &Path) -> HResult<File> {
+    pub fn new_from_path(path: &Path) -> WResult<File> {
         let pathbuf = path.to_path_buf();
         let name = path
             .file_name()
@@ -1239,15 +1237,15 @@ impl File {
         Ok(File::new(&name, pathbuf))
     }
 
-    pub fn new_placeholder(path: &Path) -> Result<File, Error> {
+    pub fn new_placeholder(path: &Path) -> WResult<File> {
         let mut file = File::new_from_path(path)?;
         file.name = "<empty>".to_string();
         file.kind = Kind::Placeholder;
         Ok(file)
     }
 
-    pub fn rename(&mut self, new_path: &Path) -> HResult<()> {
-        self.name = new_path.file_name()?.to_string_lossy().to_string();
+    pub fn rename(&mut self, new_path: &Path) -> WResult<()> {
+        self.name = new_path.file_name().ok_or(WError::NoneError)?.to_string_lossy().to_string();
         self.path = new_path.into();
         Ok(())
     }
@@ -1328,7 +1326,7 @@ impl File {
         }
     }
 
-    pub fn calculate_size(&self) -> HResult<(usize, &str)> {
+    pub fn calculate_size(&self) -> WResult<(usize, &str)> {
         if self.is_dir() {
             let size = match self.dirsize {
                 Some(ref dirsize) => {
@@ -1373,7 +1371,7 @@ impl File {
     // prevent it from crashing hunter it's necessary to catch the
     // panic with a custom panic hook and handle it gracefully by just
     // doing nothing
-    pub fn get_mime(&self) -> HResult<mime_guess::Mime> {
+    pub fn get_mime(&self) -> WResult<mime_guess::Mime> {
         use std::panic;
         use crate::fail::MimeError;
 
@@ -1400,7 +1398,7 @@ impl File {
         mime.unwrap_or(None)
             .ok_or_else(|| {
                 let file = self.name.clone();
-                HError::Mime(MimeError::Panic(file))
+                WError::Mime(MimeError::Panic(file))
             })
     }
 
@@ -1426,7 +1424,7 @@ impl File {
         self.path.parent()
     }
 
-    pub fn parent_as_file(&self) -> HResult<File> {
+    pub fn parent_as_file(&self) -> WResult<File> {
         let pathbuf = self.parent()?;
         File::new_from_path(&pathbuf)
     }
@@ -1435,7 +1433,7 @@ impl File {
         Some(self.path.parent()?.parent()?.to_path_buf())
     }
 
-    pub fn grand_parent_as_file(&self) -> HResult<File> {
+    pub fn grand_parent_as_file(&self) -> WResult<File> {
         let pathbuf = self.grand_parent()?;
         File::new_from_path(&pathbuf)
     }
@@ -1444,7 +1442,7 @@ impl File {
         self.kind == Kind::Directory
     }
 
-    pub fn read_dir(&self) -> HResult<Files> {
+    pub fn read_dir(&self) -> WResult<Files> {
         Files::new_from_path_cancellable(&self.path, Stale::new())
     }
 
@@ -1472,7 +1470,7 @@ impl File {
         self.selected
     }
 
-    pub fn is_tagged(&self) -> HResult<bool> {
+    pub fn is_tagged(&self) -> WResult<bool> {
         if let Some(tag) = self.tag {
             return Ok(tag);
         }
@@ -1487,7 +1485,7 @@ impl File {
         }
     }
 
-    pub fn toggle_tag(&mut self) -> HResult<()> {
+    pub fn toggle_tag(&mut self) -> WResult<()> {
         let new_state = match self.tag {
             Some(tag) => !tag,
             None => {
@@ -1501,13 +1499,13 @@ impl File {
         Ok(())
     }
 
-    pub fn save_tags(&self) -> HResult<()> {
+    pub fn save_tags(&self) -> WResult<()> {
         if self.tag.is_none() { return Ok(()); }
 
         let path = self.path.clone();
         let state = self.tag.unwrap();
 
-        std::thread::spawn(move || -> HResult<()> {
+        std::thread::spawn(move || -> WResult<()> {
             use std::os::unix::ffi::OsStrExt;
 
             let tagfile_path = crate::paths::tagfile_path()?;
@@ -1541,7 +1539,7 @@ impl File {
         Ok(())
     }
 
-    pub fn is_readable(&self) -> HResult<bool> {
+    pub fn is_readable(&self) -> WResult<bool> {
         let meta = self.meta()?;
         let meta = meta.as_ref()?;
         let current_user = get_current_username()?.to_string_lossy().to_string();
@@ -1571,7 +1569,7 @@ impl File {
         }
     }
 
-    pub fn pretty_print_permissions(&self) -> HResult<String> {
+    pub fn pretty_print_permissions(&self) -> WResult<String> {
         let meta = self.meta()?;
         let meta = meta.as_ref()?;
 

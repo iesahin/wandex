@@ -1,12 +1,12 @@
 use lazy_static;
 use termion::event::Key;
-use failure::{self, Fail};
+use thiserror::Error;
 use parking_lot::{Mutex, RwLock};
 
 use crate::widget::{Widget, WidgetCore};
 use crate::coordinates::Coordinates;
 use crate::async_value::Stale;
-use crate::fail::{HResult, HError, ErrorLog, ErrorCause};
+use crate::fail::{WResult, WError, ErrorLog, ErrorCause};
 use crate::imgview::ImgView;
 
 use std::path::{Path, PathBuf};
@@ -16,21 +16,21 @@ use std::sync::{Arc,
 use std::io::{BufRead, BufReader, Write};
 use std::process::Child;
 
-#[derive(Fail, Debug, Clone)]
+#[derive(Error, Debug, Clone)]
 pub enum MediaError {
-    #[fail(display = "{}", _0)]
+    #[error("{}", _0)]
     NoPreviewer(String),
-    #[fail(display = "No output could be read from {}", _0)]
+    #[error("No output could be read from {}", _0)]
     NoOutput(String),
-    #[fail(display = "Media viewer exited with status code: {}", _0)]
-    MediaViewerFailed(i32, #[cause] ErrorCause),
-    #[fail(display = "Media viewer killed!")]
+    #[error("Media viewer exited with status code: {}", _0)]
+    MediaViewerFailed(i32, ErrorCause),
+    #[error("Media viewer killed!")]
     MediaViewerKilled,
 }
 
-impl From<MediaError> for HError {
-    fn from(e: MediaError) -> HError {
-        HError::Media(e)
+impl From<MediaError> for WError {
+    fn from(e: MediaError) -> WError {
+        WError::Media(e)
     }
 }
 
@@ -62,7 +62,7 @@ pub struct MediaView {
                                           Arc<Mutex<usize>>,
                                           Arc<Mutex<usize>>,
                                           Arc<Mutex<usize>>)
-                                          -> HResult<()> + Send + 'static>>
+                                          -> WResult<()> + Send + 'static>>
 }
 
 #[derive(Clone,Debug)]
@@ -83,7 +83,7 @@ impl MediaType {
 impl MediaView {
     pub fn new_from_file(core: WidgetCore,
                          file: &Path,
-                         media_type: MediaType) -> HResult<MediaView> {
+                         media_type: MediaType) -> WResult<MediaView> {
         let imgview = ImgView {
             core: core.clone(),
             buffer: vec![],
@@ -112,7 +112,7 @@ impl MediaView {
                                    mute,
                                    height: Arc<Mutex<usize>>,
                                    position: Arc<Mutex<usize>>,
-                                   duration: Arc<Mutex<usize>>| -> HResult<()> {
+                                   duration: Arc<Mutex<usize>>| -> WResult<()> {
             loop {
                 if tstale.is_stale()? {
                     return Ok(());
@@ -167,7 +167,7 @@ impl MediaView {
                 let mut line_buf = String::new();
                 let rx_cmd = rx_cmd.clone();
 
-                std::thread::spawn(move || -> HResult<()> {
+                std::thread::spawn(move || -> WResult<()> {
                     for cmd in rx_cmd.lock().iter() {
                         write!(stdin, "{}", cmd)?;
                         write!(stdin, "\n")?;
@@ -231,7 +231,7 @@ impl MediaView {
                         }
                         imgview.set_image_data(frame);
                         sender.send(crate::widget::Events::WidgetReady)
-                              .map_err(|e| HError::from(e))
+                              .map_err(|e| WError::from(e))
                               .log();
 
                         line_buf.clear();
@@ -262,7 +262,7 @@ impl MediaView {
         })
     }
 
-    pub fn start_video(&mut self) -> HResult<()> {
+    pub fn start_video(&mut self) -> WResult<()> {
         let runner = self.preview_runner.take();
 
         if runner.is_some() {
@@ -274,7 +274,7 @@ impl MediaView {
             let duration = self.duration.clone();
             let clear = self.get_core()?.get_clearlist()?;
 
-            std::thread::spawn(move || -> HResult<()> {
+            std::thread::spawn(move || -> WResult<()> {
                 // Sleep a bit to avoid overloading the system when scrolling
                 let sleeptime = std::time::Duration::from_millis(50);
                 std::thread::sleep(sleeptime);
@@ -294,15 +294,15 @@ impl MediaView {
         Ok(())
     }
 
-    pub fn play(&self) -> HResult<()> {
+    pub fn play(&self) -> WResult<()> {
         Ok(self.controller.send(String::from("p"))?)
     }
 
-    pub fn pause(&self) -> HResult<()> {
+    pub fn pause(&self) -> WResult<()> {
         Ok(self.controller.send(String::from ("a"))?)
     }
 
-    pub fn progress_bar(&self) -> HResult<String> {
+    pub fn progress_bar(&self) -> WResult<String> {
         let xsize = self.core.coordinates.xsize_u();
 
         let position = self.position.lock().clone();
@@ -323,7 +323,7 @@ impl MediaView {
         }
     }
 
-    pub fn progress_string(&self) -> HResult<String> {
+    pub fn progress_string(&self) -> WResult<String> {
         let position = self.position.lock().clone();
         let duration = self.duration.lock().clone();
 
@@ -333,7 +333,7 @@ impl MediaView {
         Ok(format!("{} / {}", fposition, fduration))
     }
 
-    pub fn get_icons(&self, lines: usize) -> HResult<String> {
+    pub fn get_icons(&self, lines: usize) -> WResult<String> {
         let (xpos, ypos) = self.core.coordinates.position_u();
         let (xsize, _) = self.core.coordinates.size_u();
 
@@ -371,7 +371,7 @@ impl MediaView {
         format!("{:02}:{:02}:{:02}", hours, mins, secs % 60)
     }
 
-    pub fn toggle_pause(&mut self) -> HResult<()> {
+    pub fn toggle_pause(&mut self) -> WResult<()> {
         let auto = AUTOPLAY.read().clone();
         let pos = self.position.lock().clone();
 
@@ -398,15 +398,15 @@ impl MediaView {
         Ok(())
     }
 
-    pub fn quit(&self) -> HResult<()> {
+    pub fn quit(&self) -> WResult<()> {
         Ok(self.controller.send(String::from("q"))?)
     }
 
-    pub fn seek_forward(&self) -> HResult<()> {
+    pub fn seek_forward(&self) -> WResult<()> {
         Ok(self.controller.send(String::from(">"))?)
     }
 
-    pub fn seek_backward(&self) -> HResult<()> {
+    pub fn seek_backward(&self) -> WResult<()> {
         Ok(self.controller.send(String::from("<"))?)
     }
 
@@ -432,14 +432,14 @@ impl MediaView {
         }
     }
 
-    pub fn kill(&mut self) -> HResult<()> {
+    pub fn kill(&mut self) -> WResult<()> {
         let proc = self.process.clone();
-        std::thread::spawn(move || -> HResult<()> {
+        std::thread::spawn(move || -> WResult<()> {
             proc.lock()
                 .as_mut()
                 .map(|p| {
-                    p.kill().map_err(|e| HError::from(e)).log();
-                    p.wait().map_err(|e| HError::from(e)).log();
+                    p.kill().map_err(|e| WError::from(e)).log();
+                    p.wait().map_err(|e| WError::from(e)).log();
                 });
             Ok(())
         });
@@ -448,15 +448,15 @@ impl MediaView {
 }
 
 impl Widget for MediaView {
-    fn get_core(&self) -> HResult<&WidgetCore> {
+    fn get_core(&self) -> WResult<&WidgetCore> {
         Ok(&self.core)
     }
 
-    fn get_core_mut(&mut self) -> HResult<&mut WidgetCore> {
+    fn get_core_mut(&mut self) -> WResult<&mut WidgetCore> {
         Ok(&mut self.core)
     }
 
-    fn set_coordinates(&mut self, coordinates: &Coordinates) -> HResult<()> {
+    fn set_coordinates(&mut self, coordinates: &Coordinates) -> WResult<()> {
         if &self.core.coordinates == coordinates { return Ok(()); }
 
 
@@ -482,12 +482,12 @@ impl Widget for MediaView {
         Ok(())
     }
 
-    fn refresh(&mut self) -> HResult<()> {
+    fn refresh(&mut self) -> WResult<()> {
         self.start_video().log();
         Ok(())
     }
 
-    fn get_drawlist(&self) -> HResult<String> {
+    fn get_drawlist(&self) -> WResult<String> {
         let (xpos, ypos) = self.core.coordinates.position_u();
         let height = *self.height.lock();
         let progress_str = self.progress_string()?;
@@ -508,7 +508,7 @@ impl Widget for MediaView {
         Ok(frame)
     }
 
-    fn on_key(&mut self, key: Key) -> HResult<()> {
+    fn on_key(&mut self, key: Key) -> WResult<()> {
         self.do_key(key)
     }
 }
@@ -532,7 +532,7 @@ impl Acting for MediaView {
         self.core.config().keybinds.media
     }
 
-    fn do_action(&mut self, action: &MediaAction) -> HResult<()> {
+    fn do_action(&mut self, action: &MediaAction) -> WResult<()> {
         use MediaAction::*;
 
         match action {

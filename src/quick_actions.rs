@@ -11,7 +11,7 @@ use std::ffi::OsString;
 use std::str::FromStr;
 
 
-use crate::fail::{HResult, HError, KeyBindError, ErrorLog};
+use crate::fail::{WResult, WError, KeyBindError, ErrorLog};
 use crate::widget::{Widget, WidgetCore, Events};
 use crate::foldview::{Foldable, FoldableWidgetExt, ActingExt};
 use crate::listview::ListView;
@@ -26,7 +26,7 @@ use crate::keybind::{Bindings, Movement, QuickActionAction};
 pub type QuickActionView = ListView<Vec<QuickActions>>;
 
 impl FoldableWidgetExt for ListView<Vec<QuickActions>> {
-    fn on_refresh(&mut self) -> HResult<()> {
+    fn on_refresh(&mut self) -> WResult<()> {
         for action in self.content.iter_mut() {
             action.actions.pull_async().ok();
             let content = action.actions
@@ -60,12 +60,12 @@ impl FoldableWidgetExt for ListView<Vec<QuickActions>> {
         Ok(())
     }
 
-    fn render_header(&self) -> HResult<String> {
+    fn render_header(&self) -> WResult<String> {
         let mime = &self.content.get(0)?.mime;
         Ok(format!("QuickActions for MIME: {}", mime))
     }
 
-    fn on_key(&mut self, key: Key) -> HResult<()> {
+    fn on_key(&mut self, key: Key) -> WResult<()> {
         ActingExt::do_key_ext(self,key)
     }
 
@@ -98,14 +98,14 @@ impl ActingExt for QuickActionView {
         self.core.config().keybinds.quickaction
     }
 
-    fn movement(&mut self, movement: &Movement) -> HResult<()> {
+    fn movement(&mut self, movement: &Movement) -> WResult<()> {
         match movement {
             Movement::Right => self.run_action(None),
             _ => Err(KeyBindError::MovementUndefined)?
         }
     }
 
-    fn do_action(&mut self, action: &Self::Action) -> HResult<()> {
+    fn do_action(&mut self, action: &Self::Action) -> WResult<()> {
         use crate::keybind::QuickActionAction::*;
 
         match action {
@@ -124,7 +124,7 @@ impl ActingExt for QuickActionView {
                             self.toggle_fold()?;
                         } else {
                             self.run_action(Some(num))?;
-                            HError::popup_finnished()?
+                            WError::popup_finished()?
                         }
                     }
                 }
@@ -151,7 +151,7 @@ impl ListView<Vec<QuickActions>> {
         }
     }
 
-    fn run_action(&mut self, num: Option<usize>) -> HResult<()> {
+    fn run_action(&mut self, num: Option<usize>) -> WResult<()> {
         num.map(|num| self.set_selection(num));
 
         let current_fold = self.current_fold()?;
@@ -212,7 +212,7 @@ impl QuickActions {
                subpath: &str,
                description: String,
                sender: Sender<Events>,
-               proc_view: Arc<Mutex<ProcView>>) -> HResult<QuickActions> {
+               proc_view: Arc<Mutex<ProcView>>) -> WResult<QuickActions> {
         let mut actions = files.get_actions(mime.clone(), subpath.to_string());
 
         actions.on_ready(move |_,_| {
@@ -239,7 +239,7 @@ impl QuickActions {
 pub fn open(files: Vec<File>,
            sender: Sender<Events>,
            core: WidgetCore,
-           proc_view: Arc<Mutex<ProcView>>) -> HResult<()> {
+           proc_view: Arc<Mutex<ProcView>>) -> WResult<()> {
     let mime  = files.common_mime()
         .unwrap_or_else(|| Mime::from_str("*/").unwrap());
 
@@ -279,9 +279,9 @@ pub fn open(files: Vec<File>,
     loop {
         // TODO: Handle this properly
         match action_view.popup() {
-            Err(HError::RefreshParent) => continue,
-            Err(HError::WidgetResizedError) => continue,
-            Err(HError::TerminalResizedError) => continue,
+            Err(WError::RefreshParent) => continue,
+            Err(WError::WidgetResizedError) => continue,
+            Err(WError::TerminalResizedError) => continue,
             r @ _ => break r
         }
     }
@@ -361,7 +361,7 @@ impl QuickAction {
     fn run(&self,
            files: Vec<File>,
            core: &WidgetCore,
-           proc_view: Arc<Mutex<ProcView>>) -> HResult<()> {
+           proc_view: Arc<Mutex<ProcView>>) -> WResult<()> {
         use crate::minibuffer::MiniBufferEvent::*;;
 
         let answers = self.queries
@@ -372,7 +372,7 @@ impl QuickAction {
                 if acc.is_err() { return acc; }
 
                 match core.minibuffer(query) {
-                    Err(HError::MiniBufferEvent(Empty)) => {
+                    Err(WError::MiniBufferEvent(Empty)) => {
                         acc.as_mut()
                             .map(|acc| acc.push((OsString::from(query),
                                                  OsString::from(""))))

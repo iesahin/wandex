@@ -2,7 +2,7 @@ use termion::event::{Event};
 
 use crate::widget::{Widget, WidgetCore};
 use crate::coordinates::{Coordinates, Size, Position};
-use crate::fail::{HResult, HError, ErrorLog};
+use crate::fail::{WResult, WError, ErrorLog};
 
 #[derive(Debug, PartialEq)]
 pub struct HBox<T: Widget> {
@@ -25,7 +25,7 @@ impl<T> HBox<T> where T: Widget + PartialEq {
     }
 
 
-    pub fn resize_children(&mut self) -> HResult<()> {
+    pub fn resize_children(&mut self) -> WResult<()> {
         let len = self.widgets.len();
         if len == 0 { return Ok(()) }
 
@@ -71,7 +71,7 @@ impl<T> HBox<T> where T: Widget + PartialEq {
         widget
     }
 
-    pub fn toggle_zoom(&mut self) -> HResult<()> {
+    pub fn toggle_zoom(&mut self) -> WResult<()> {
         self.core.clear().log();
         self.zoom_active = !self.zoom_active;
         self.resize_children()
@@ -81,15 +81,15 @@ impl<T> HBox<T> where T: Widget + PartialEq {
         self.ratios = Some(ratios);
     }
 
-    pub fn calculate_equal_ratios(&self) -> HResult<Vec<usize>> {
+    pub fn calculate_equal_ratios(&self) -> WResult<Vec<usize>> {
         let len = self.widgets.len();
-        if len == 0 { return HError::no_widget(); }
+        if len == 0 { return WError::no_widget(); }
 
         let ratios = (0..len).map(|_| 100 / len).collect();
         Ok(ratios)
     }
 
-    pub fn calculate_coordinates(&self) -> HResult<Vec<Coordinates>> {
+    pub fn calculate_coordinates(&self) -> WResult<Vec<Coordinates>> {
         let box_coords = self.get_coordinates()?;
         let box_xsize = box_coords.xsize();
         let box_ysize = box_coords.ysize();
@@ -144,9 +144,9 @@ impl<T> HBox<T> where T: Widget + PartialEq {
         Ok(coords)
     }
 
-    pub fn set_active(&mut self, i: usize) -> HResult<()> {
+    pub fn set_active(&mut self, i: usize) -> WResult<()> {
         if i+1 > self.widgets.len() {
-            HError::no_widget()?
+            WError::no_widget()?
         }
         self.active = Some(i);
         Ok(())
@@ -165,23 +165,23 @@ impl<T> HBox<T> where T: Widget + PartialEq {
 
 
 impl<T> Widget for HBox<T> where T: Widget + PartialEq {
-    fn get_core(&self) -> HResult<&WidgetCore> {
+    fn get_core(&self) -> WResult<&WidgetCore> {
         Ok(&self.core)
     }
-    fn get_core_mut(&mut self) -> HResult<&mut WidgetCore> {
+    fn get_core_mut(&mut self) -> WResult<&mut WidgetCore> {
         Ok(&mut self.core)
     }
 
-    fn set_coordinates(&mut self, coordinates: &Coordinates) -> HResult<()> {
+    fn set_coordinates(&mut self, coordinates: &Coordinates) -> WResult<()> {
         self.core.coordinates = coordinates.clone();
         self.resize_children()
     }
 
-    fn render_header(&self) -> HResult<String> {
+    fn render_header(&self) -> WResult<String> {
         self.active_widget()?.render_header()
     }
 
-    fn refresh(&mut self) -> HResult<()> {
+    fn refresh(&mut self) -> WResult<()> {
         if self.zoom_active {
             self.active_widget_mut()?.refresh().log();
             return Ok(());
@@ -194,7 +194,7 @@ impl<T> Widget for HBox<T> where T: Widget + PartialEq {
         Ok(())
     }
 
-    fn get_drawlist(&self) -> HResult<String> {
+    fn get_drawlist(&self) -> WResult<String> {
         if self.zoom_active {
             return self.active_widget()?.get_drawlist();
         }
@@ -204,12 +204,12 @@ impl<T> Widget for HBox<T> where T: Widget + PartialEq {
         }).collect())
     }
 
-    fn on_event(&mut self, event: Event) -> HResult<()> {
+    fn on_event(&mut self, event: Event) -> WResult<()> {
         self.active_widget_mut()?.on_event(event)?;
         Ok(())
     }
 
-    fn on_key(&mut self, key: termion::event::Key) -> HResult<()> {
+    fn on_key(&mut self, key: termion::event::Key) -> WResult<()> {
         self.active_widget_mut()?.on_key(key)
     }
 }

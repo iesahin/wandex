@@ -20,7 +20,7 @@ use crate::widget::Widget;
 use crate::tabview::{TabView, Tabbable};
 use crate::preview::{Previewer, AsyncWidget};
 use crate::textview::TextView;
-use crate::fail::{HResult, HError, ErrorLog};
+use crate::fail::{WResult, WError, ErrorLog};
 use crate::widget::{Events, WidgetCore};
 use crate::proclist::ProcView;
 use crate::bookmarks::BMPopup;
@@ -39,35 +39,35 @@ pub enum FileBrowserWidgets {
 }
 
 impl Widget for FileBrowserWidgets {
-    fn get_core(&self) -> HResult<&WidgetCore> {
+    fn get_core(&self) -> WResult<&WidgetCore> {
         match self {
             FileBrowserWidgets::FileList(widget) => widget.get_core(),
             FileBrowserWidgets::Previewer(widget) => widget.get_core(),
             FileBrowserWidgets::Blank(widget) => widget.get_core(),
         }
     }
-    fn get_core_mut(&mut self) -> HResult<&mut WidgetCore> {
+    fn get_core_mut(&mut self) -> WResult<&mut WidgetCore> {
         match self {
             FileBrowserWidgets::FileList(widget) => widget.get_core_mut(),
             FileBrowserWidgets::Previewer(widget) => widget.get_core_mut(),
             FileBrowserWidgets::Blank(widget) => widget.get_core_mut(),
         }
     }
-    fn set_coordinates(&mut self, coordinates: &Coordinates) -> HResult<()> {
+    fn set_coordinates(&mut self, coordinates: &Coordinates) -> WResult<()> {
         match self {
             FileBrowserWidgets::FileList(widget) => widget.set_coordinates(coordinates),
             FileBrowserWidgets::Previewer(widget) => widget.set_coordinates(coordinates),
             FileBrowserWidgets::Blank(widget) => widget.set_coordinates(coordinates),
         }
     }
-    fn refresh(&mut self) -> HResult<()> {
+    fn refresh(&mut self) -> WResult<()> {
         match self {
             FileBrowserWidgets::FileList(widget) => widget.refresh(),
             FileBrowserWidgets::Previewer(widget) => widget.refresh(),
             FileBrowserWidgets::Blank(widget) => widget.refresh(),
         }
     }
-    fn get_drawlist(&self) -> HResult<String> {
+    fn get_drawlist(&self) -> WResult<String> {
         match self {
             FileBrowserWidgets::FileList(widget) => widget.get_drawlist(),
             FileBrowserWidgets::Previewer(widget) => widget.get_drawlist(),
@@ -75,7 +75,7 @@ impl Widget for FileBrowserWidgets {
         }
     }
 
-    fn on_key(&mut self, key: Key) -> HResult<()> {
+    fn on_key(&mut self, key: Key) -> WResult<()> {
         match self {
             FileBrowserWidgets::FileList(widget) => widget.on_key(key),
             FileBrowserWidgets::Previewer(widget) => widget.on_key(key),
@@ -99,7 +99,7 @@ pub struct FileBrowser {
 impl Tabbable for TabView<FileBrowser> {
     type Tab = FileBrowser;
 
-    fn new_tab(&mut self) -> HResult<()> {
+    fn new_tab(&mut self) -> WResult<()> {
         self.active_tab_mut().save_tab_settings().log();
 
         let cur_tab = self.active_tab();
@@ -121,22 +121,22 @@ impl Tabbable for TabView<FileBrowser> {
         Ok(())
     }
 
-    fn close_tab(&mut self) -> HResult<()> {
+    fn close_tab(&mut self) -> WResult<()> {
         self.close_tab_().log();
         Ok(())
     }
 
-    fn next_tab(&mut self) -> HResult<()> {
+    fn next_tab(&mut self) -> WResult<()> {
         self.next_tab_();
         Ok(())
     }
 
-    fn prev_tab(&mut self) -> HResult<()> {
+    fn prev_tab(&mut self) -> WResult<()> {
         self.prev_tab_();
         Ok(())
     }
 
-    fn goto_tab(&mut self, index: usize) -> HResult<()> {
+    fn goto_tab(&mut self, index: usize) -> WResult<()> {
         self.goto_tab_(index)
     }
 
@@ -157,14 +157,14 @@ impl Tabbable for TabView<FileBrowser> {
         self.active_tab_mut_()
     }
 
-    fn on_tab_switch(&mut self) -> HResult<()> {
+    fn on_tab_switch(&mut self) -> WResult<()> {
         self.active_tab_mut().refresh()
     }
 
-    fn on_key_sub(&mut self, key: Key) -> HResult<()> {
+    fn on_key_sub(&mut self, key: Key) -> WResult<()> {
         match self.active_tab_mut().on_key(key) {
             // returned by specific tab when called with ExecCmd action
-            Err(HError::FileBrowserNeedTabFiles) => {
+            Err(WError::FileBrowserNeedTabFiles) => {
                 let tab_dirs = self.widgets.iter().map(|w| w.cwd.clone())
                     .collect::<Vec<_>>();
                 let selected_files = self
@@ -180,7 +180,7 @@ impl Tabbable for TabView<FileBrowser> {
         }
     }
 
-    fn on_refresh(&mut self) -> HResult<()> {
+    fn on_refresh(&mut self) -> WResult<()> {
         let open_dirs = self.widgets
             .iter()
             .fold(HashSet::new(), |mut dirs, tab| {
@@ -207,7 +207,7 @@ impl Tabbable for TabView<FileBrowser> {
         Ok(())
     }
 
-    fn on_config_loaded(&mut self) -> HResult<()> {
+    fn on_config_loaded(&mut self) -> WResult<()> {
         let show_hidden = self.core.config().show_hidden();
 
         for tab in self.widgets.iter_mut() {
@@ -254,7 +254,7 @@ impl Tabbable for TabView<FileBrowser> {
 
 
 impl FileBrowser {
-    pub fn new(core: &WidgetCore, cache: Option<FsCache>) -> HResult<FileBrowser> {
+    pub fn new(core: &WidgetCore, cache: Option<FsCache>) -> WResult<FileBrowser> {
         let fs_cache = cache.unwrap_or_else(|| FsCache::new(core.get_sender()));
 
         let cwd = std::env::current_dir().unwrap();
@@ -274,7 +274,7 @@ impl FileBrowser {
                            .take(1)
                            .map(|path| {
                                std::path::PathBuf::from(path)
-                           }).last()?;
+                           }).last().ok_or(WError::NoneError)?;
         let left_path = main_path.parent().map(|p| p.to_path_buf());
 
         let cache = fs_cache.clone();
@@ -344,7 +344,7 @@ impl FileBrowser {
                          fs_stat: Arc::new(RwLock::new(fs_stat)) })
     }
 
-    pub fn enter_dir(&mut self) -> HResult<()> {
+    pub fn enter_dir(&mut self) -> WResult<()> {
         let file = self.selected_file()?;
 
         if file.is_dir() {
@@ -424,7 +424,7 @@ impl FileBrowser {
         Ok(())
     }
 
-    pub fn move_down_left_widget(&mut self) -> HResult<()> {
+    pub fn move_down_left_widget(&mut self) -> WResult<()> {
         let left_files_pos = self.left_widget()?.get_selection();
 
         let next_dir = self.get_left_files()?
@@ -433,12 +433,12 @@ impl FileBrowser {
             .find(|&file| file.is_dir())
             .cloned();
 
-        self.main_widget_goto(&next_dir?).log();
+        self.main_widget_goto(&next_dir.ok_or(WError::NoneError)?).log();
 
         Ok(())
     }
 
-    pub fn move_up_left_widget(&mut self) -> HResult<()> {
+    pub fn move_up_left_widget(&mut self) -> WResult<()> {
         let left_files_pos = self.left_widget()?.get_selection();
 
         let next_dir = self.get_left_files()?
@@ -450,12 +450,12 @@ impl FileBrowser {
             .find(|&file| file.is_dir())
             .cloned();
 
-        self.main_widget_goto(&next_dir?).log();
+        self.main_widget_goto(&next_dir.ok_or(WError::NoneError)?).log();
 
         Ok(())
     }
 
-    pub fn open_bg(&mut self) -> HResult<()> {
+    pub fn open_bg(&mut self) -> WResult<()> {
         let cwd = self.cwd()?;
         let file = self.selected_file()?;
 
@@ -477,7 +477,7 @@ impl FileBrowser {
         Ok(())
     }
 
-    pub fn main_widget_goto_wait(&mut self, dir :&File) -> HResult<()> {
+    pub fn main_widget_goto_wait(&mut self, dir :&File) -> WResult<()> {
         self.main_widget_goto(&dir)?;
 
         // replace this with on_ready_mut() later
@@ -490,7 +490,7 @@ impl FileBrowser {
         Ok(())
     }
 
-    pub fn main_widget_goto(&mut self, dir: &File) -> HResult<()> {
+    pub fn main_widget_goto(&mut self, dir: &File) -> WResult<()> {
         self.preview_widget_mut()
             .map(|p| p.set_stale())
             .ok();
@@ -517,7 +517,7 @@ impl FileBrowser {
             self.left_widget_goto(&grand_parent).log();
         } else {
             self.left_async_widget_mut()?.change_to(move |_,_| {
-                HError::stale()?
+                WError::stale()?
             }).log();
         }
 
@@ -526,7 +526,7 @@ impl FileBrowser {
         Ok(())
     }
 
-    pub fn left_widget_goto(&mut self, dir: &File) -> HResult<()> {
+    pub fn left_widget_goto(&mut self, dir: &File) -> WResult<()> {
         // Check if we're in the correct directory already and return
         // if we are
         let left_dir = &self.left_widget()?.content.directory;
@@ -549,7 +549,7 @@ impl FileBrowser {
         Ok(())
     }
 
-    pub fn go_back(&mut self) -> HResult<()> {
+    pub fn go_back(&mut self) -> WResult<()> {
         if let Ok(new_cwd) = self.cwd.parent_as_file() {
             let previewer_selection = self.selected_file().ok();
             let main_selection = self.cwd.clone();
@@ -611,19 +611,19 @@ impl FileBrowser {
         self.refresh()
     }
 
-    pub fn goto_prev_cwd(&mut self) -> HResult<()> {
-        let prev_cwd = self.prev_cwd.take()?;
+    pub fn goto_prev_cwd(&mut self) -> WResult<()> {
+        let prev_cwd = self.prev_cwd.take().ok_or(WError::NoneError)?;
         self.main_widget_goto(&prev_cwd)?;
         Ok(())
     }
 
-    pub fn go_home(&mut self) -> HResult<()> {
+    pub fn go_home(&mut self) -> WResult<()> {
         let home = crate::paths::home_path().unwrap_or(PathBuf::from("~/"));
         let home = File::new_from_path(&home)?;
         self.main_widget_goto(&home)
     }
 
-    fn get_boomark(&mut self) -> HResult<String> {
+    fn get_boomark(&mut self) -> WResult<String> {
         let cwd = &match self.prev_cwd.as_ref() {
             Some(cwd) => cwd,
             None => &self.cwd
@@ -639,7 +639,7 @@ impl FileBrowser {
                                .lock()
                                .pick(cwd.to_string());
 
-            if let Err(HError::TerminalResizedError) = bookmark {
+            if let Err(WError::TerminalResizedError) = bookmark {
                 self.core.screen.clear().log();
                 self.resize().log();
                 self.refresh().log();
@@ -647,7 +647,7 @@ impl FileBrowser {
                 continue;
             }
 
-            if let Err(HError::WidgetResizedError) = bookmark {
+            if let Err(WError::WidgetResizedError) = bookmark {
                 let coords = &self.core.coordinates;
                 self.bookmarks
                     .lock()
@@ -659,7 +659,7 @@ impl FileBrowser {
                 continue;
             }
 
-            if let Err(HError::RefreshParent) = bookmark {
+            if let Err(WError::RefreshParent) = bookmark {
                 self.refresh().log();
                 self.draw().log();
                 continue;
@@ -669,14 +669,14 @@ impl FileBrowser {
         }
     }
 
-    pub fn goto_bookmark(&mut self) -> HResult<()> {
+    pub fn goto_bookmark(&mut self) -> WResult<()> {
         let path = self.get_boomark()?;
         let path = File::new_from_path(&PathBuf::from(path))?;
         self.main_widget_goto(&path)?;
         Ok(())
     }
 
-    pub fn add_bookmark(&mut self) -> HResult<()> {
+    pub fn add_bookmark(&mut self) -> WResult<()> {
         let cwd = self.cwd.path.to_string_lossy().to_string();
         let coords = &self.core.coordinates;
 
@@ -690,14 +690,14 @@ impl FileBrowser {
         Ok(())
     }
 
-    pub fn set_title(&self) -> HResult<()> {
+    pub fn set_title(&self) -> WResult<()> {
         let path = self.cwd.short_string();
 
         self.core.screen()?.set_title(&path)?;
         Ok(())
     }
 
-    pub fn update_preview(&mut self) -> HResult<()> {
+    pub fn update_preview(&mut self) -> WResult<()> {
         if !self.main_async_widget_mut()?.ready() { return Ok(()) }
         if self.main_widget()?
             .content
@@ -722,7 +722,7 @@ impl FileBrowser {
         Ok(())
     }
 
-    pub fn set_left_selection(&mut self) -> HResult<()> {
+    pub fn set_left_selection(&mut self) -> WResult<()> {
         if self.cwd.parent().is_none() { return Ok(()) }
         if !self.left_async_widget_mut()?.ready() { return Ok(()) }
 
@@ -748,35 +748,35 @@ impl FileBrowser {
         Ok(())
     }
 
-    pub fn take_main_files(&mut self) -> HResult<Files> {
+    pub fn take_main_files(&mut self) -> WResult<Files> {
         let w = self.main_widget_mut()?;
         let files = std::mem::take(&mut w.content);
         w.content.len = 0;
         Ok(files)
     }
 
-    pub fn take_left_files(&mut self) -> HResult<Files> {
+    pub fn take_left_files(&mut self) -> WResult<Files> {
         let w = self.left_widget_mut()?;
         let files = std::mem::take(&mut w.content);
         w.content.len = 0;
         Ok(files)
     }
 
-    pub fn get_files(&self) -> HResult<&Files> {
+    pub fn get_files(&self) -> WResult<&Files> {
         Ok(&self.main_widget()?.content)
     }
 
-    pub fn get_left_files(&self) -> HResult<&Files> {
+    pub fn get_left_files(&self) -> WResult<&Files> {
         Ok(&self.left_widget()?.content)
     }
 
-    pub fn save_selected_file(&self) -> HResult<()> {
+    pub fn save_selected_file(&self) -> WResult<()> {
         self.selected_file()
             .map(|f| self.fs_cache.set_selection(self.cwd.clone(),
                                                  f))?
     }
 
-    pub fn save_tab_settings(&mut self) -> HResult<()> {
+    pub fn save_tab_settings(&mut self) -> WResult<()> {
         if !self.main_async_widget_mut()?.ready() { return Ok(()) }
 
         if self.main_widget()?.content.len() > 0 {
@@ -789,29 +789,29 @@ impl FileBrowser {
     }
 
 
-    pub fn cwd(&self) -> HResult<&File> {
+    pub fn cwd(&self) -> WResult<&File> {
         Ok(&self.cwd)
     }
 
-    pub fn set_cwd(&mut self) -> HResult<()> {
+    pub fn set_cwd(&mut self) -> WResult<()> {
         let cwd = self.cwd()?;
         std::env::set_current_dir(&cwd.path)?;
         Ok(())
     }
 
-    pub fn left_dir(&self) -> HResult<&File> {
+    pub fn left_dir(&self) -> WResult<&File> {
         let widget = self.left_widget()?;
         let dir = &widget.content.directory;
         Ok(dir)
     }
 
-    pub fn selected_file(&self) -> HResult<File> {
+    pub fn selected_file(&self) -> WResult<File> {
         let widget = self.main_widget()?;
         let file = widget.selected_file().clone();
         Ok(file)
     }
 
-    pub fn selected_files(&self) -> HResult<Vec<File>> {
+    pub fn selected_files(&self) -> WResult<Vec<File>> {
         let widget = self.main_widget()?;
         let files = widget.content.get_selected().into_iter().map(|f| {
             f.clone()
@@ -819,71 +819,71 @@ impl FileBrowser {
         Ok(files)
     }
 
-    pub fn main_async_widget_mut(&mut self) -> HResult<&mut AsyncWidget<ListView<Files>>> {
-        let widget = self.columns.active_widget_mut()?;
+    pub fn main_async_widget_mut(&mut self) -> WResult<&mut AsyncWidget<ListView<Files>>> {
+        let widget = self.columns.active_widget_mut().ok_or(WError::NoneError)?;
 
         let widget = match widget {
             FileBrowserWidgets::FileList(filelist) => filelist,
-            _ => { HError::wrong_widget("previewer", "filelist")? }
+            _ => { WError::wrong_widget("previewer", "filelist")? }
         };
         Ok(widget)
     }
 
-    pub fn main_widget(&self) -> HResult<&ListView<Files>> {
-        let widget = self.columns.active_widget()?;
+    pub fn main_widget(&self) -> WResult<&ListView<Files>> {
+        let widget = self.columns.active_widget().ok_or(WError::NoneError)?;
 
         let widget = match widget {
             FileBrowserWidgets::FileList(filelist) => filelist.widget(),
-            _ => { HError::wrong_widget("previewer", "filelist")? }
+            _ => { WError::wrong_widget("previewer", "filelist")? }
         };
         widget
     }
 
-    pub fn main_widget_mut(&mut self) -> HResult<&mut ListView<Files>> {
-        let widget = self.columns.active_widget_mut()?;
+    pub fn main_widget_mut(&mut self) -> WResult<&mut ListView<Files>> {
+        let widget = self.columns.active_widget_mut().ok_or(WError::NoneError)?;
 
         let widget = match widget {
             FileBrowserWidgets::FileList(filelist) => filelist.widget_mut(),
-            _ => { HError::wrong_widget("previewer", "filelist")? }
+            _ => { WError::wrong_widget("previewer", "filelist")? }
         };
         widget
     }
 
-    pub fn left_async_widget_mut(&mut self) -> HResult<&mut AsyncWidget<ListView<Files>>> {
-        let widget = match self.columns.widgets.get_mut(0)? {
+    pub fn left_async_widget_mut(&mut self) -> WResult<&mut AsyncWidget<ListView<Files>>> {
+        let widget = match self.columns.widgets.get_mut(0).ok_or(WError::NoneError)? {
             FileBrowserWidgets::FileList(filelist) => filelist,
-            _ => { return HError::wrong_widget("previewer", "filelist"); }
+            _ => { return WError::wrong_widget("previewer", "filelist"); }
         };
         Ok(widget)
     }
 
-    pub fn left_widget(&self) -> HResult<&ListView<Files>> {
-        let widget = match self.columns.widgets.get(0)? {
+    pub fn left_widget(&self) -> WResult<&ListView<Files>> {
+        let widget = match self.columns.widgets.get(0).ok_or(WError::NoneError)? {
             FileBrowserWidgets::FileList(filelist) => filelist.widget(),
-            _ => { return HError::wrong_widget("previewer", "filelist"); }
+            _ => { return WError::wrong_widget("previewer", "filelist"); }
         };
         widget
     }
 
-    pub fn left_widget_mut(&mut self) -> HResult<&mut ListView<Files>> {
-        let widget = match self.columns.widgets.get_mut(0)? {
+    pub fn left_widget_mut(&mut self) -> WResult<&mut ListView<Files>> {
+        let widget = match self.columns.widgets.get_mut(0).ok_or(WError::NoneError)? {
             FileBrowserWidgets::FileList(filelist) => filelist.widget_mut(),
-            _ => { return HError::wrong_widget("previewer", "filelist"); }
+            _ => { return WError::wrong_widget("previewer", "filelist"); }
         };
         widget
     }
 
-    pub fn preview_widget(&self) -> HResult<&Previewer> {
-        match self.columns.widgets.get(2)? {
+    pub fn preview_widget(&self) -> WResult<&Previewer> {
+        match self.columns.widgets.get(2).ok_or(WError::NoneError)? {
             FileBrowserWidgets::Previewer(previewer) => Ok(previewer),
-            _ => { return HError::wrong_widget("filelist", "previewer"); }
+            _ => { return WError::wrong_widget("filelist", "previewer"); }
         }
     }
 
-    pub fn preview_widget_mut(&mut self) -> HResult<&mut Previewer> {
-        match self.columns.widgets.get_mut(2)? {
+    pub fn preview_widget_mut(&mut self) -> WResult<&mut Previewer> {
+        match self.columns.widgets.get_mut(2).ok_or(WError::NoneError)? {
             FileBrowserWidgets::Previewer(previewer) => Ok(previewer),
-            _ => { return HError::wrong_widget("filelist", "previewer"); }
+            _ => { return WError::wrong_widget("filelist", "previewer"); }
         }
     }
 
@@ -928,7 +928,7 @@ impl FileBrowser {
             .log();
     }
 
-    pub fn quit_with_dir(&self) -> HResult<()> {
+    pub fn quit_with_dir(&self) -> WResult<()> {
         let cwd = self.cwd()?.clone().path;
         let selected_file = self.selected_file()?;
         let selected_file = selected_file.path.to_string_lossy();
@@ -938,20 +938,20 @@ impl FileBrowser {
             format!("\"{}\" ", &f.path.to_string_lossy())
         }).collect::<String>();
 
-        let mut filepath = dirs_2::home_dir()?;
-        filepath.push(".hunter_cwd");
+        let mut filepath = dirs_2::home_dir().ok_or(WError::NoneError)?;
+        filepath.push(".wandex_cwd");
 
-        let output = format!("HUNTER_CWD=\"{}\"\nF=\"{}\"\nMF=({})\n",
-                             cwd.to_str()?,
+        let output = format!("WANDEX_CWD=\"{}\"\nF=\"{}\"\nMF=({})\n",
+                             cwd.to_str().ok_or(WError::NoneError)?,
                              selected_file,
                              selected_files);
 
         let mut file = std::fs::File::create(filepath)?;
         file.write(output.as_bytes())?;
-        HError::quit()
+        WError::quit()
     }
 
-    pub fn turbo_cd(&mut self) -> HResult<()> {
+    pub fn turbo_cd(&mut self) -> WResult<()> {
         use crate::minibuffer::MiniBufferEvent::*;
 
         // Return and reset on cancel
@@ -983,12 +983,12 @@ impl FileBrowser {
 
             match input {
                 // While minibuffer runs it steals all events, thus explicit refresh/redraw
-                Err(HError::RefreshParent) => {
+                Err(WError::RefreshParent) => {
                     self.refresh().log();
                     self.draw().log();
                     continue;
                 }
-                Err(HError::MiniBufferEvent(event)) => {
+                Err(WError::MiniBufferEvent(event)) => {
                     match event {
                         // Done here, restore filter, but leave selection as is
                         Done(_) | Empty => {
@@ -1096,7 +1096,7 @@ impl FileBrowser {
         Ok(())
     }
 
-    fn external_select(&mut self) -> HResult<()> {
+    fn external_select(&mut self) -> WResult<()> {
         let shell = std::env::var("SHELL").unwrap_or("bash".into());
         let cmd = self.core
                       .config
@@ -1174,7 +1174,7 @@ impl FileBrowser {
                                 continue;
                             }
 
-                            let dir_path = file_path.parent()?;
+                            let dir_path = file_path.parent().ok_or(WError::NoneError)?;
                             if self.cwd.path != dir_path {
                                 let file_dir = File::new_from_path(&dir_path);
 
@@ -1205,7 +1205,7 @@ impl FileBrowser {
         Ok(())
     }
 
-    fn external_cd(&mut self) -> HResult<()> {
+    fn external_cd(&mut self) -> WResult<()> {
         let shell = std::env::var("SHELL").unwrap_or("bash".into());
         let cmd = self.core
                       .config
@@ -1269,7 +1269,7 @@ impl FileBrowser {
 
     fn exec_cmd(&mut self,
                 tab_dirs: Vec<File>,
-                tab_files: Vec<Vec<File>>) -> HResult<()> {
+                tab_files: Vec<Vec<File>>) -> WResult<()> {
         let cwd = self.cwd()?.clone();
         let selected_file = self.selected_file().ok();
         let selected_files = self.selected_files().ok();
@@ -1306,7 +1306,7 @@ impl FileBrowser {
         Ok(())
     }
 
-    pub fn run_subshell(&mut self) -> HResult<()> {
+    pub fn run_subshell(&mut self) -> WResult<()> {
         self.core.get_sender().send(Events::InputEnabled(false))?;
 
         self.preview_widget().map(|preview| preview.cancel_animation()).log();
@@ -1334,33 +1334,33 @@ impl FileBrowser {
         Ok(())
     }
 
-    pub fn show_procview(&mut self) -> HResult<()> {
+    pub fn show_procview(&mut self) -> WResult<()> {
         self.preview_widget().map(|preview| preview.cancel_animation()).log();
         let procview = self.proc_view.clone();
         loop {
             match procview.lock().popup() {
                 // Ignore refresh
-                Err(HError::RefreshParent) => continue,
-                Err(HError::TerminalResizedError) |
-                Err(HError::WidgetResizedError) => self.resize().log(),
+                Err(WError::RefreshParent) => continue,
+                Err(WError::TerminalResizedError) |
+                Err(WError::WidgetResizedError) => self.resize().log(),
                 _ => break
             }
         }
         Ok(())
     }
 
-    pub fn show_log(&mut self) -> HResult<()> {
+    pub fn show_log(&mut self) -> WResult<()> {
         self.preview_widget().map(|preview| preview.cancel_animation()).log();
         loop {
             let res = self.log_view
                           .lock()
                           .popup();
 
-            if let Err(HError::RefreshParent) = res {
+            if let Err(WError::RefreshParent) = res {
                 continue
             }
 
-            if let Err(HError::TerminalResizedError) = res {
+            if let Err(WError::TerminalResizedError) = res {
                 self.resize().log();
                 continue;
             }
@@ -1371,7 +1371,7 @@ impl FileBrowser {
         Ok(())
     }
 
-    pub fn quick_action(&self) -> HResult<()> {
+    pub fn quick_action(&self) -> WResult<()> {
         let files = self.selected_files()?;
         let files = if files.len() > 0 { files }
         else { vec![self.selected_file()?.clone()] };
@@ -1387,7 +1387,7 @@ impl FileBrowser {
         Ok(())
     }
 
-    pub fn get_footer(&self) -> HResult<String> {
+    pub fn get_footer(&self) -> WResult<String> {
         let xsize = self.get_coordinates()?.xsize();
         let ypos = self.get_coordinates()?.position().y();
         let file = self.selected_file()?;
@@ -1453,14 +1453,14 @@ impl FileBrowser {
 }
 
 impl Widget for FileBrowser {
-    fn get_core(&self) -> HResult<&WidgetCore> {
+    fn get_core(&self) -> WResult<&WidgetCore> {
         Ok(&self.core)
     }
-    fn get_core_mut(&mut self) -> HResult<&mut WidgetCore> {
+    fn get_core_mut(&mut self) -> WResult<&mut WidgetCore> {
         Ok(&mut self.core)
     }
 
-    fn set_coordinates(&mut self, coordinates: &Coordinates) -> HResult<()> {
+    fn set_coordinates(&mut self, coordinates: &Coordinates) -> WResult<()> {
         self.core.coordinates = coordinates.clone();
         self.columns.set_coordinates(&coordinates).log();
 
@@ -1479,7 +1479,7 @@ impl Widget for FileBrowser {
         Ok(())
     }
 
-    fn render_header(&self) -> HResult<String> {
+    fn render_header(&self) -> WResult<String> {
         let xsize = self.get_coordinates()?.xsize();
         let file = self.selected_file()?;
         let name = &file.name;
@@ -1508,7 +1508,7 @@ impl Widget for FileBrowser {
         Ok(sized_path.to_string())
     }
 
-    fn render_footer(&self) -> HResult<String> {
+    fn render_footer(&self) -> WResult<String> {
         let xsize = term::xsize_u();
         let mut status = self.get_core()?
                              .status_bar_content
@@ -1526,7 +1526,7 @@ impl Widget for FileBrowser {
         }
     }
 
-    fn refresh(&mut self) -> HResult<()> {
+    fn refresh(&mut self) -> WResult<()> {
         self.set_title().log();
         self.columns.refresh().log();
         self.set_left_selection().log();
@@ -1536,11 +1536,11 @@ impl Widget for FileBrowser {
         Ok(())
     }
 
-    fn get_drawlist(&self) -> HResult<String> {
+    fn get_drawlist(&self) -> WResult<String> {
         self.columns.get_drawlist()
     }
 
-    fn on_key(&mut self, key: Key) -> HResult<()> {
+    fn on_key(&mut self, key: Key) -> WResult<()> {
         // Special handling for preview zoom
         let binds = self.search_in();
         let action = binds.get(key);
@@ -1555,19 +1555,19 @@ impl Widget for FileBrowser {
                 return Ok(());
             }
             (_, Some(2)) => {
-                self.columns.active_widget_mut()?.on_key(key)?;
+                self.columns.active_widget_mut().ok_or(WError::NoneError)?.on_key(key)?;
                 return Ok(());
             }
             _ => {}
         }
 
         match self.do_key(key) {
-            Err(HError::WidgetUndefinedKeyError{..}) => {
+            Err(WError::WidgetUndefinedKeyError{..}) => {
                 match self.main_widget_mut()?.on_key(key) {
                     Ok(_) => {
                         self.save_tab_settings()?;
                     }
-                    Err(HError::WidgetUndefinedKeyError{..}) => {
+                    Err(WError::WidgetUndefinedKeyError{..}) => {
                         self.preview_widget_mut()?.on_key(key)?
                     }
                     e @ _ => e?
@@ -1590,7 +1590,7 @@ impl Acting for FileBrowser {
         self.core.config().keybinds.filebrowser
     }
 
-    fn movement(&mut self, movement: &Movement) -> HResult<()> {
+    fn movement(&mut self, movement: &Movement) -> WResult<()> {
         use Movement::*;
 
         match movement {
@@ -1609,10 +1609,10 @@ impl Acting for FileBrowser {
         }
     }
 
-    fn do_action(&mut self, action: &Self::Action) -> HResult<()> {
+    fn do_action(&mut self, action: &Self::Action) -> WResult<()> {
         use FileBrowserAction::*;
         match action {
-            Quit => HError::quit()?,
+            Quit => WError::quit()?,
             QuitWithDir => self.quit_with_dir()?,
             LeftColumnDown => self.move_down_left_widget()?,
             LeftColumnUp => self.move_up_left_widget()?,
@@ -1631,7 +1631,7 @@ impl Acting for FileBrowser {
             ToggleColumns => self.toggle_colums(),
             ZoomPreview => self.zoom_preview(),
             // Tab implementation needs to call exec_cmd because ALL files are needed
-            ExecCmd => Err(HError::FileBrowserNeedTabFiles)?
+            ExecCmd => Err(WError::FileBrowserNeedTabFiles)?
         }
         Ok(())
     }

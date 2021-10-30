@@ -5,7 +5,7 @@ use chrono::{DateTime, Local};
 use crate::term;
 use crate::widget::Widget;
 use crate::listview::{ListView, Listable};
-use crate::fail::{HResult, HError, KeyBindError};
+use crate::fail::{WResult, WError, KeyBindError};
 use crate::dirty::Dirtyable;
 use crate::keybind::{Acting, AnyKey, Bindings, BindingSection, Movement, FoldAction, LogAction};
 
@@ -42,12 +42,12 @@ impl Foldable for LogEntry {
 }
 
 
-impl From<&HError> for LogEntry {
-    fn from(from: &HError) -> LogEntry {
+impl From<&WError> for LogEntry {
+    fn from(from: &WError) -> LogEntry {
         let time: DateTime<Local> = Local::now();
 
         let logcolor = match from {
-            HError::Log(_) => term::normal_color(),
+            WError::Log(_) => term::normal_color(),
             _ => term::color_red()
         };
 
@@ -91,10 +91,10 @@ where
     type Action;
 
     fn search_in(&self) -> Bindings<Self::Action>;
-    fn movement(&mut self, _movement: &Movement) -> HResult<()> {
+    fn movement(&mut self, _movement: &Movement) -> WResult<()> {
         Err(KeyBindError::MovementUndefined)?
     }
-    fn do_key_ext(&mut self, key: Key) -> HResult<()> {
+    fn do_key_ext(&mut self, key: Key) -> WResult<()> {
         let gkey = AnyKey::from(key);
 
         // Moving takes priority
@@ -105,7 +105,7 @@ where
             .get(gkey) {
                 match self.movement(movement) {
                     Ok(()) => return Ok(()),
-                    Err(HError::KeyBind(KeyBindError::MovementUndefined)) => {}
+                    Err(WError::KeyBind(KeyBindError::MovementUndefined)) => {}
                     Err(e) => Err(e)?
                 }
             }
@@ -123,9 +123,9 @@ where
             }
         }
 
-        HError::undefined_key(key)
+        WError::undefined_key(key)
     }
-    fn do_action(&mut self, _action: &Self::Action) -> HResult<()> {
+    fn do_action(&mut self, _action: &Self::Action) -> WResult<()> {
         Err(KeyBindError::MovementUndefined)?
     }
 }
@@ -137,7 +137,7 @@ impl ActingExt for ListView<Vec<LogEntry>> {
         self.core.config().keybinds.log
     }
 
-    fn do_action(&mut self, action: &Self::Action) -> HResult<()> {
+    fn do_action(&mut self, action: &Self::Action) -> WResult<()> {
         match action {
             LogAction::Close => self.popup_finnished()
         }
@@ -149,24 +149,24 @@ where
     Self: ActingExt,
     Bindings<<Self as ActingExt>::Action>: Default
 {
-    fn on_refresh(&mut self) -> HResult<()> { Ok(()) }
-    fn render_header(&self) -> HResult<String> { Ok("".to_string()) }
-    fn render_footer(&self) -> HResult<String> { Ok("".to_string()) }
-    fn on_key(&mut self, key: Key) -> HResult<()> {
-        HError::undefined_key(key)?
+    fn on_refresh(&mut self) -> WResult<()> { Ok(()) }
+    fn render_header(&self) -> WResult<String> { Ok("".to_string()) }
+    fn render_footer(&self) -> WResult<String> { Ok("".to_string()) }
+    fn on_key(&mut self, key: Key) -> WResult<()> {
+        WError::undefined_key(key)?
     }
     fn render(&self) -> Vec<String> { vec![] }
 }
 
 impl FoldableWidgetExt for  ListView<Vec<LogEntry>> {
-    fn on_refresh(&mut self) -> HResult<()> {
+    fn on_refresh(&mut self) -> WResult<()> {
         if self.content.refresh_logs()? > 0 {
             self.core.set_dirty();
         }
         Ok(())
     }
 
-    fn render_header(&self) -> HResult<String> {
+    fn render_header(&self) -> WResult<String> {
         let (xsize, _) = self.core.coordinates.size_u();
         let current = self.current_fold().map(|n| n+1).unwrap_or(0);
         let num = self.content.len();
@@ -179,7 +179,7 @@ impl FoldableWidgetExt for  ListView<Vec<LogEntry>> {
         Ok(header)
     }
 
-    fn render_footer(&self) -> HResult<String> {
+    fn render_footer(&self) -> WResult<String> {
         let current = self.current_fold()?;
         if let Some(logentry) = self.content.get(current) {
             let (xsize, ysize) = self.core.coordinates.size_u();
@@ -210,11 +210,11 @@ impl FoldableWidgetExt for  ListView<Vec<LogEntry>> {
 }
 
 trait LogList {
-    fn refresh_logs(&mut self) -> HResult<usize>;
+    fn refresh_logs(&mut self) -> WResult<usize>;
 }
 
 impl LogList for Vec<LogEntry> {
-    fn refresh_logs(&mut self) -> HResult<usize> {
+    fn refresh_logs(&mut self) -> WResult<usize> {
         let logs = crate::fail::get_logs()?;
 
         let mut logentries = logs.into_iter().map(|log| {
@@ -272,7 +272,7 @@ where
     ListView<Vec<F>>: FoldableWidgetExt,
     Bindings<<ListView<Vec<F>> as ActingExt>::Action>: Default {
 
-    pub fn toggle_fold(&mut self) -> HResult<()> {
+    pub fn toggle_fold(&mut self) -> WResult<()> {
         let fold = self.current_fold()?;
         let fold_pos = self.fold_start_pos(fold);
 
@@ -350,21 +350,21 @@ where
             .collect()
     }
 
-    fn render_header(&self) -> HResult<String> {
+    fn render_header(&self) -> WResult<String> {
         FoldableWidgetExt::render_header(self)
     }
 
-    fn render_footer(&self) -> HResult<String> {
+    fn render_footer(&self) -> WResult<String> {
         FoldableWidgetExt::render_footer(self)
     }
 
-    fn on_refresh(&mut self) -> HResult<()> {
+    fn on_refresh(&mut self) -> WResult<()> {
         FoldableWidgetExt::on_refresh(self)
     }
 
-    fn on_key(&mut self, key: Key) -> HResult<()> {
+    fn on_key(&mut self, key: Key) -> WResult<()> {
         match ActingExt::do_key_ext(self, key) {
-            Err(HError::PopupFinnished) => Err(HError::PopupFinnished),
+            Err(WError::PopupFinished) => Err(WError::PopupFinished),
             _ => self.do_key(key)
         }
     }
@@ -381,7 +381,7 @@ where
         self.core.config().keybinds.fold
     }
 
-    fn movement(&mut self, movement: &Movement) -> HResult<()> {
+    fn movement(&mut self, movement: &Movement) -> WResult<()> {
         use Movement::*;
 
 
@@ -394,7 +394,7 @@ where
         Ok(())
     }
 
-    fn do_action(&mut self, action: &FoldAction) -> HResult<()> {
+    fn do_action(&mut self, action: &FoldAction) -> WResult<()> {
         use FoldAction::*;
 
         match action {

@@ -5,7 +5,7 @@ use std::ffi::{OsStr, OsString};
 
 use crate::coordinates::{Coordinates};
 use crate::widget::{Widget, WidgetCore};
-use crate::fail::{HResult, HError, ErrorLog};
+use crate::fail::{WResult, WError, ErrorLog};
 use crate::term::ScreenExt;
 
 type HMap = HashMap<String, Vec<String>>;
@@ -26,7 +26,7 @@ impl History {
         }
     }
 
-    fn load(&mut self) -> HResult<()> {
+    fn load(&mut self) -> WResult<()> {
         if self.loaded { return Ok(()) }
 
         let hpath = crate::paths::history_path()?;
@@ -54,7 +54,7 @@ impl History {
         Ok(())
     }
 
-    fn save(&self) -> HResult<()> {
+    fn save(&self) -> WResult<()> {
         let hpath = crate::paths::history_path()?;
 
         let history = self.history.iter().map(|(htype, hlines)| {
@@ -84,14 +84,14 @@ impl History {
         self.save().log();
     }
 
-    fn get_prev(&mut self, htype: &str) -> HResult<String> {
+    fn get_prev(&mut self, htype: &str) -> WResult<String> {
         self.load()?;
         let history = self.history.get(htype)?;
         let mut position = self.position;
         let hist_len = history.len();
 
         if position == Some(0) { position = None; }
-        if hist_len == 0 { return Err(HError::NoHistoryError); }
+        if hist_len == 0 { return Err(WError::NoHistoryError); }
 
         if let Some(position) = position {
             let historic = history[position - 1].clone();
@@ -105,13 +105,13 @@ impl History {
 
     }
 
-    fn get_next(&mut self, htype: &str) -> HResult<String> {
+    fn get_next(&mut self, htype: &str) -> WResult<String> {
         self.load()?;
         let history = self.history.get(htype)?;
         let mut position = self.position;
         let hist_len = history.len();
 
-        if hist_len == 0 { return Err(HError::NoHistoryError); }
+        if hist_len == 0 { return Err(WError::NoHistoryError); }
         if position == Some(hist_len) ||
            position == None
             { position = Some(0); }
@@ -169,7 +169,7 @@ impl MiniBuffer {
         }
     }
 
-    pub fn query(&mut self, query: &str, cont: bool) -> HResult<String> {
+    pub fn query(&mut self, query: &str, cont: bool) -> WResult<String> {
         self.continuous = cont;
 
         if !cont || self.query != query {
@@ -181,8 +181,8 @@ impl MiniBuffer {
         self.core.screen()?.cursor_hide().log();
 
         match self.popup() {
-            event @ Err(HError::MiniBufferEvent(_)) => event?,
-            err @ Err(HError::RefreshParent) => err?,
+            event @ Err(WError::MiniBufferEvent(_)) => event?,
+            err @ Err(WError::RefreshParent) => err?,
             _ => {}
         };
 
@@ -200,7 +200,7 @@ impl MiniBuffer {
         self.last_completion = None;
     }
 
-    pub fn complete(&mut self) -> HResult<()> {
+    pub fn complete(&mut self) -> WResult<()> {
         if !self.input.ends_with(" ") {
             if !self.completions.is_empty() {
                 self.cycle_completions()?;
@@ -248,7 +248,7 @@ impl MiniBuffer {
         Ok(())
     }
 
-    pub fn cycle_completions(&mut self) -> HResult<()> {
+    pub fn cycle_completions(&mut self) -> WResult<()> {
         let last_comp = self.last_completion.as_ref()?;
         let last_len = last_comp.len();
 
@@ -263,7 +263,7 @@ impl MiniBuffer {
         Ok(())
     }
 
-    pub fn history_up(&mut self) -> HResult<()> {
+    pub fn history_up(&mut self) -> WResult<()> {
         if self.query.as_str() == "nav" {
             return Err(MiniBufferEvent::CyclePrev)?;
         }
@@ -276,7 +276,7 @@ impl MiniBuffer {
         Ok(())
     }
 
-    pub fn history_down(&mut self) -> HResult<()> {
+    pub fn history_down(&mut self) -> WResult<()> {
         if self.query.as_str() == "nav" {
             return Err(MiniBufferEvent::CycleNext)?;
         }
@@ -289,13 +289,13 @@ impl MiniBuffer {
         Ok(())
     }
 
-    pub fn clear_line(&mut self) -> HResult<()> {
+    pub fn clear_line(&mut self) -> WResult<()> {
         self.input.clear();
         self.position = 0;
         Ok(())
     }
 
-    pub fn delete_word(&mut self) -> HResult<()> {
+    pub fn delete_word(&mut self) -> WResult<()> {
         let old_input_len = self.input.len();
         let (before_cursor, after_cursor) = self.input.split_at(self.position);
 
@@ -353,26 +353,26 @@ impl MiniBuffer {
         Ok(())
     }
 
-    pub fn input_finnished(&self) -> HResult<()> {
-        return HError::popup_finnished()
+    pub fn input_finnished(&self) -> WResult<()> {
+        return WError::popup_finished()
     }
 
-    pub fn input_cancelled(&self) -> HResult<()> {
+    pub fn input_cancelled(&self) -> WResult<()> {
         self.core.show_status("Input cancelled").log();
         return Err(MiniBufferEvent::Cancelled)?;
     }
 
-    pub fn input_updated(&self) -> HResult<()> {
+    pub fn input_updated(&self) -> WResult<()> {
         return Err(MiniBufferEvent::NewInput(self.input.clone()))?;
     }
 
-    pub fn input_empty(&self) -> HResult<()> {
+    pub fn input_empty(&self) -> WResult<()> {
         self.core.show_status("Empty!").log();
         return Err(MiniBufferEvent::Empty)?;
     }
 }
 
-pub fn find_bins(comp_name: &str) -> HResult<Vec<OsString>> {
+pub fn find_bins(comp_name: &str) -> WResult<Vec<OsString>> {
     use osstrtools::OsStrTools;
 
     let paths = std::env::var_os("PATH")?;
@@ -388,7 +388,7 @@ pub fn find_bins(comp_name: &str) -> HResult<Vec<OsString>> {
                 if &name.trim_start(comp_name).len() != &name.len() {
                     Ok(name)
                 } else {
-                    Err(HError::NoCompletionsError)
+                    Err(WError::NoCompletionsError)
                 }
 
             })
@@ -399,12 +399,12 @@ pub fn find_bins(comp_name: &str) -> HResult<Vec<OsString>> {
       .map(|s| s.unwrap())
       .collect::<Vec<OsString>>();
 
-    if completions.is_empty() { return Err(HError::NoCompletionsError); }
+    if completions.is_empty() { return Err(WError::NoCompletionsError); }
 
     Ok(completions)
 }
 
-pub fn find_files(comp_name: &str) -> HResult<Vec<OsString>> {
+pub fn find_files(comp_name: &str) -> WResult<Vec<OsString>> {
     use osstrtools::OsStrTools;
 
     let mut path = std::env::current_dir()?;
@@ -413,7 +413,7 @@ pub fn find_files(comp_name: &str) -> HResult<Vec<OsString>> {
 
     // Tried to complete on an incorrect path
     if comp_name.ends_with("/") && !path.is_dir() {
-        return Err(HError::NoCompletionsError)
+        return Err(WError::NoCompletionsError)
     }
 
     let comp_name = OsStr::new(comp_name);
@@ -449,26 +449,26 @@ pub fn find_files(comp_name: &str) -> HResult<Vec<OsString>> {
                 Ok(completion)
             }
         } else {
-            Err(HError::NoCompletionsError)
+            Err(WError::NoCompletionsError)
         }
     }).filter_map(|res| res.ok())
       .collect::<Vec<OsString>>();
-    if completions.is_empty() { return Err(HError::NoCompletionsError); }
+    if completions.is_empty() { return Err(WError::NoCompletionsError); }
     Ok(completions)
 }
 
 impl Widget for MiniBuffer {
-    fn get_core(&self) -> HResult<&WidgetCore> {
+    fn get_core(&self) -> WResult<&WidgetCore> {
         Ok(&self.core)
     }
-    fn get_core_mut(&mut self) -> HResult<&mut WidgetCore> {
+    fn get_core_mut(&mut self) -> WResult<&mut WidgetCore> {
         Ok(&mut self.core)
     }
-    fn refresh(&mut self) -> HResult<()> {
+    fn refresh(&mut self) -> WResult<()> {
         Ok(())
     }
 
-    fn get_drawlist(&self) -> HResult<String> {
+    fn get_drawlist(&self) -> WResult<String> {
         let (xpos, ypos) = self.get_coordinates()?.u16position();
         Ok(format!("{}{}{}{}: {}",
                 crate::term::goto_xy(xpos, ypos),
@@ -478,7 +478,7 @@ impl Widget for MiniBuffer {
                 self.input))
     }
 
-    fn on_key(&mut self, key: Key) -> HResult<()> {
+    fn on_key(&mut self, key: Key) -> WResult<()> {
         let prev_input = self.input.clone();
 
         self.do_key(key)?;
@@ -490,7 +490,7 @@ impl Widget for MiniBuffer {
         Ok(())
     }
 
-    fn after_draw(&self) -> HResult<()> {
+    fn after_draw(&self) -> WResult<()> {
         let cursor_pos = crate::term::string_len(&self.query) +
                          ": ".len() +
                          self.position;
@@ -514,7 +514,7 @@ impl Acting for MiniBuffer {
         self.core.config().keybinds.minibuffer
     }
 
-    fn do_action(&mut self, action: &Self::Action) -> HResult<()> {
+    fn do_action(&mut self, action: &Self::Action) -> WResult<()> {
         use MiniBufferAction::*;
 
         match action {

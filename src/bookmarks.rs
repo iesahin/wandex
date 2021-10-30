@@ -2,7 +2,7 @@ use termion::event::Key;
 
 use std::collections::HashMap;
 
-use crate::fail::{HResult, HError, ErrorLog};
+use crate::fail::{WResult, WError, ErrorLog};
 use crate::widget::{Widget, WidgetCore};
 use crate::coordinates::Coordinates;
 use crate::term;
@@ -15,19 +15,22 @@ pub struct Bookmarks {
 impl Bookmarks {
     pub fn new() -> Bookmarks {
         let mut bm = Bookmarks { mapping: HashMap::new() };
-        bm.load().or_else(|_| HError::log("Couldn't load bookmarks!")).ok();
+        bm.load().or_else(|_| WError::log("Couldn't load bookmarks!")).ok();
         bm
     }
-    pub fn add(&mut self, key: char, path: &str) -> HResult<()> {
+    pub fn add(&mut self, key: char, path: &str) -> WResult<()> {
         self.mapping.insert(key, path.to_string());
         self.save()?;
         Ok(())
     }
-    pub fn get(&self, key: char) -> HResult<&String> {
-        let path = self.mapping.get(&key)?;
+    pub fn get(&self, key: char) -> WResult<&String> {
+        if let Some(path) = self.mapping.get(&key) {
         Ok(path)
+        } else {
+            Err(WError::BookmarkNotFound)
+        }
     }
-    pub fn load(&mut self) -> HResult<()> {
+    pub fn load(&mut self) -> WResult<()> {
         let bm_file = crate::paths::bookmark_path()?;
 
         if !bm_file.exists() {
@@ -50,7 +53,7 @@ impl Bookmarks {
         self.mapping = mapping;
         Ok(())
     }
-    pub fn import(&self) -> HResult<()> {
+    pub fn import(&self) -> WResult<()> {
         let mut ranger_bm_path = crate::paths::ranger_path()?;
         ranger_bm_path.push("bookmarks");
 
@@ -60,7 +63,7 @@ impl Bookmarks {
         }
         Ok(())
     }
-    pub fn save(&self) -> HResult<()> {
+    pub fn save(&self) -> WResult<()> {
         let bm_file = crate::paths::bookmark_path()?;
         let bookmarks = self.mapping.iter().map(|(key, path)| {
             format!("{}:{}\n", key, path)
@@ -92,23 +95,21 @@ impl BMPopup {
         bmpopup
     }
 
-    pub fn pick(&mut self, cwd: String) -> HResult<String> {
+    pub fn pick(&mut self, cwd: String) -> WResult<String> {
         self.bookmark_path = Some(cwd);
         self.refresh()?;
         match self.popup() {
             Ok(_) => {},
-            Err(HError::PopupFinnished) => {},
-            err @ Err(HError::TerminalResizedError) => err?,
-            err @ Err(HError::WidgetResizedError) => err?,
-            err @ Err(_) => err?,
+            Err(WError::PopupFinished) => {},
+            Err(err) => return Err(err),
         }
         self.get_core()?.clear()?;
 
         let bookmark = self.bookmark_path.take();
-        Ok(bookmark?)
+        bookmark.ok_or(WError::BookmarkNotFound)
     }
 
-    pub fn add(&mut self, path: &str) -> HResult<()> {
+    pub fn add(&mut self, path: &str) -> WResult<()> {
         self.add_mode = true;
         self.bookmark_path = Some(path.to_string());
         self.refresh()?;
@@ -118,8 +119,8 @@ impl BMPopup {
         Ok(())
     }
 
-    fn resize(&mut self) -> HResult<()> {
-        HError::terminal_resized()?
+    fn resize(&mut self) -> WResult<()> {
+        WError::terminal_resized()?
     }
 
     pub fn render_line(&self, n: u16, key: &char, path: &str) -> String {
@@ -138,21 +139,21 @@ impl BMPopup {
 
 
 impl Widget for BMPopup {
-    fn get_core(&self) -> HResult<&WidgetCore> {
+    fn get_core(&self) -> WResult<&WidgetCore> {
         Ok(&self.core)
     }
-    fn get_core_mut(&mut self) -> HResult<&mut WidgetCore> {
+    fn get_core_mut(&mut self) -> WResult<&mut WidgetCore> {
         Ok(&mut self.core)
     }
-    fn refresh(&mut self) -> HResult<()> {
+    fn refresh(&mut self) -> WResult<()> {
         Ok(())
     }
 
-    fn resize(&mut self) -> HResult<()> {
-        HError::terminal_resized()
+    fn resize(&mut self) -> WResult<()> {
+        WError::terminal_resized()
     }
 
-    fn set_coordinates(&mut self, _: &Coordinates) -> HResult<()> {
+    fn set_coordinates(&mut self, _: &Coordinates) -> WResult<()> {
         let (xsize, ysize) = crate::term::size()?;
         let len = self.bookmarks.mapping.len();
         let ysize = ysize.saturating_sub( len + 1 );
@@ -163,13 +164,13 @@ impl Widget for BMPopup {
         Ok(())
     }
 
-    fn get_drawlist(&self) -> HResult<String> {
+    fn get_drawlist(&self) -> WResult<String> {
         let ypos = self.get_coordinates()?.ypos();
 
         let mut drawlist = String::new();
 
         if !self.add_mode {
-            let cwd = self.bookmark_path.as_ref()?;
+            let cwd = self.bookmark_path.as_ref().ok_or(WError::BookmarkPathNotFound)?;
             drawlist += &self.render_line(ypos, &'`', cwd);
         }
 
@@ -182,30 +183,30 @@ impl Widget for BMPopup {
 
         Ok(drawlist)
     }
-    fn on_key(&mut self, key: Key) -> HResult<()> {
+    fn on_key(&mut self, key: Key) -> WResult<()> {
         match key {
             Key::Ctrl('c') | Key::Esc => {
                 self.bookmark_path = None;
-                return HError::popup_finnished()
+                return WError::popup_finished()
             },
-            Key::Char('`') => return HError::popup_finnished(),
+            Key::Char('`') => return WError::popup_finished(),
             Key::Char(key) => {
                 if self.add_mode {
-                    let path = self.bookmark_path.take()?;
+                    let path = self.bookmark_path.take().ok_or(WError::BookmarkPathNotFound)?;
                     self.bookmarks.add(key, &path)?;
                     self.add_mode = false;
                     self.bookmarks.save().log();
-                    return HError::popup_finnished();
+                    return WError::popup_finished();
                 }
                 if let Ok(path) = self.bookmarks.get(key) {
                     self.bookmark_path.replace(path.clone());
-                    return HError::popup_finnished();
+                    return WError::popup_finished();
                 }
             }
             Key::Alt(key) => {
                 self.bookmarks.mapping.remove(&key);
                 self.bookmarks.save().log();
-                return HError::widget_resized();
+                return WError::widget_resized();
             }
             _ => {}
         }

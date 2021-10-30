@@ -4,11 +4,11 @@ use std::process::Command;
 use std::ffi::OsStr;
 use std::path::Path;
 
-use crate::fail::{HError, HResult, ErrorLog};
+use crate::fail::{WError, WResult, ErrorLog};
 use crate::widget::WidgetCore;
 
 
-pub fn ensure_config(core: WidgetCore) -> HResult<()> {
+pub fn ensure_config(core: WidgetCore) -> WResult<()> {
     if has_config()? {
         let previewers_path = crate::paths::previewers_path()?;
         let actions_path = crate::paths::actions_path()?;
@@ -32,7 +32,7 @@ pub fn ensure_config(core: WidgetCore) -> HResult<()> {
 
     let msg = match install_config_all() {
         Ok(_) => format!("Config installed in: {}",
-                         crate::paths::hunter_path()?.to_string_lossy()),
+                         crate::paths::wandex_path()?.to_string_lossy()),
         Err(_) => format!("{}Problems with installation of default configuration! Look inside log.",
                           crate::term::color_red()),
     };
@@ -47,8 +47,8 @@ fn default_config_archive() -> &'static [u8] {
     default_config
 }
 
-fn has_config() -> HResult<bool> {
-    let config_dir = crate::paths::hunter_path()?;
+fn has_config() -> WResult<bool> {
+    let config_dir = crate::paths::wandex_path()?;
 
     if config_dir.exists() {
         return Ok(true);
@@ -58,15 +58,15 @@ fn has_config() -> HResult<bool> {
 }
 
 
-fn install_config_all() -> HResult<()> {
-    let hunter_dir = crate::paths::hunter_path()?;
-    let config_dir = hunter_dir.parent()?;
+fn install_config_all() -> WResult<()> {
+    let wandex_dir = crate::paths::wandex_path()?;
+    let config_dir = wandex_dir.parent().ok_or(WError::NoneError)?;
 
-    if !hunter_dir.exists() {
+    if !wandex_dir.exists() {
         // create if non-existing
-        std::fs::create_dir(&hunter_dir)
-            .or_else(|_| HError::log(&format!("Couldn't create directory: {}",
-                                              hunter_dir.as_os_str()
+        std::fs::create_dir(&wandex_dir)
+            .or_else(|_| WError::log(&format!("Couldn't create directory: {}",
+                                              wandex_dir.as_os_str()
                                                         .to_string_lossy())))?;
     }
 
@@ -77,7 +77,7 @@ fn install_config_all() -> HResult<()> {
     Ok(())
 }
 
-fn copy(from: &Path, to: &Path) -> HResult<()> {
+fn copy(from: &Path, to: &Path) -> WResult<()> {
     // Uses -a flag to preserve symlinks
     let success = Command::new("cp")
         .arg("-a")
@@ -87,7 +87,7 @@ fn copy(from: &Path, to: &Path) -> HResult<()> {
         .map(|s| s.success());
 
     if success.is_err() || !success.unwrap() {
-        HError::log(&format!("Couldn't copy {} to {} !",
+        WError::log(&format!("Couldn't copy {} to {} !",
                              from.to_string_lossy(),
                              to.to_string_lossy()))
     } else {
@@ -95,23 +95,23 @@ fn copy(from: &Path, to: &Path) -> HResult<()> {
     }
 }
 
-fn install_config_previewers() -> HResult<()> {
-    let hunter_dir = crate::paths::hunter_path()?;
+fn install_config_previewers() -> WResult<()> {
+    let hunter_dir = crate::paths::wandex_path()?;
     let archive_path = create_archive()?;
     extract_archive(Path::new("/tmp"), &archive_path)?;
     copy(Path::new("/tmp/hunter/previewers"), &hunter_dir)?;
     delete_archive(&archive_path)
 }
 
-fn install_config_actions() -> HResult<()> {
-    let hunter_dir = crate::paths::hunter_path()?;
+fn install_config_actions() -> WResult<()> {
+    let hunter_dir = crate::paths::wandex_path()?;
     let archive_path = create_archive()?;
     extract_archive(Path::new("/tmp"), &archive_path)?;
     copy(Path::new("/tmp/hunter/actions"), &hunter_dir)?;
     delete_archive(&archive_path)
 }
 
-fn update_previewer() -> HResult<()> {
+fn update_previewer() -> WResult<()> {
     let previewer_dir = crate::paths::previewers_path()?;
     let archive_path = create_archive()?;
 
@@ -124,7 +124,7 @@ fn update_previewer() -> HResult<()> {
     Ok(())
 }
 
-fn update_actions() -> HResult<()> {
+fn update_actions() -> WResult<()> {
     let actions_dir = crate::paths::actions_path()?;
     let archive_path = create_archive()?;
 
@@ -137,7 +137,7 @@ fn update_actions() -> HResult<()> {
     Ok(())
 }
 
-pub fn update_config(core: WidgetCore, force: bool) -> HResult<()> {
+pub fn update_config(core: WidgetCore, force: bool) -> WResult<()> {
     // First install whatever might be missing, makes sure all dirs are there
     ensure_config(core).log();
 
@@ -153,10 +153,10 @@ pub fn update_config(core: WidgetCore, force: bool) -> HResult<()> {
     Ok(())
 }
 
-fn update_dir<P: AsRef<Path>>(source: P, target: P) -> HResult<()> {
+fn update_dir<P: AsRef<Path>>(source: P, target: P) -> WResult<()> {
     for file in std::fs::read_dir(source)? {
         let file_path = file?.path();
-        let file_name = file_path.file_name()?;
+        let file_name = file_path.file_name().ok_or(WError::NoneError)?;
         let target_path = target.as_ref().join(file_name);
 
         if file_path.is_dir() {
@@ -164,7 +164,7 @@ fn update_dir<P: AsRef<Path>>(source: P, target: P) -> HResult<()> {
             update_dir(&file_path, &target_path).log();
         } else {
             if !target_path.exists() {
-                HError::log::<()>(&format!("Installing additional config file: {}",
+                WError::log::<()>(&format!("Installing additional config file: {}",
                                            file_path.to_string_lossy())).ok();
                 copy(&file_path, &target_path).log();
             }
@@ -175,7 +175,7 @@ fn update_dir<P: AsRef<Path>>(source: P, target: P) -> HResult<()> {
 }
 
 
-fn create_archive() -> HResult<&'static str> {
+fn create_archive() -> WResult<&'static str> {
     let archive_path = "/tmp/hunter-config.tar.gz";
     let def_config = default_config_archive();
 
@@ -185,33 +185,33 @@ fn create_archive() -> HResult<&'static str> {
         })
         .and_then(|mut f| f.flush())
         .or_else(|_| {
-            HError::log(&format!("Failed to write config archive to: {}",
+            WError::log(&format!("Failed to write config archive to: {}",
                                  archive_path))
         })?;
     Ok(archive_path)
 }
 
 
-fn extract_archive(to: &Path, archive_path: &str) -> HResult<()> {
+fn extract_archive(to: &Path, archive_path: &str) -> WResult<()> {
     let success = Command::new("tar")
         .args(&[OsStr::new("-C"),
                 to.as_os_str(),
                 OsStr::new("-xf"),
                 OsStr::new(archive_path)])
         .status()
-        .or_else(|_| HError::log(&format!("Couldn't run tar!")))
+        .or_else(|_| WError::log(&format!("Couldn't run tar!")))
         .map(|s| s.success())?;
 
     if !success {
-        HError::log(&format!("Extraction of archive failed! Archive: {}",
+        WError::log(&format!("Extraction of archive failed! Archive: {}",
                              archive_path))?
     }
 
     Ok(())
 }
 
-fn delete_archive(archive_path: &str) -> HResult<()> {
+fn delete_archive(archive_path: &str) -> WResult<()> {
     std::fs::remove_file(archive_path)
-        .or_else(|_| HError::log(&format!("Deletion of archive failed! Archive: {}",
+        .or_else(|_| WError::log(&format!("Deletion of archive failed! Archive: {}",
                                           archive_path)))
 }

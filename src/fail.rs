@@ -1,7 +1,4 @@
-use failure;
-use failure::Fail;
-//use failure::Backtrace;
-//use async_value::AError;
+use thiserror::Error;
 
 
 use termion::event::Key;
@@ -13,176 +10,181 @@ use std::sync::Arc;
 use crate::foldview::LogEntry;
 use crate::mediaview::MediaError;
 
-pub type HResult<T> = Result<T, HError>;
 
 
 
-#[derive(Fail, Debug, Clone)]
-pub enum HError {
-    #[fail(display = "IO error: {} ", _0)]
+#[derive(Error, Debug, Clone)]
+pub enum WError {
+    #[error("IO error: {} ", _0)]
     IoError(String),
-    #[fail(display = "Mutex failed")]
+    #[error("Mutex failed")]
     MutexError,
-    #[fail(display = "Can't lock!")]
+    #[error("Can't lock!")]
     TryLockError,
-    #[fail(display = "Channel failed: {}", error)]
-    ChannelTryRecvError{#[cause] error: std::sync::mpsc::TryRecvError},
-    #[fail(display = "Channel failed: {}", error)]
-    ChannelRecvError{#[cause] error: std::sync::mpsc::RecvError},
-    #[fail(display = "Channel failed")]
+    #[error("Channel failed: {}", error)]
+    ChannelTryRecvError{error: std::sync::mpsc::TryRecvError},
+    #[error("Channel failed: {}", error)]
+    ChannelRecvError{error: std::sync::mpsc::RecvError},
+    #[error("Channel failed")]
     ChannelSendError,
-    #[fail(display = "Timer ran out while waiting for message on channel!")]
-    ChannelRecvTimeout(#[cause] std::sync::mpsc::RecvTimeoutError),
-    #[fail(display = "Previewer failed on file: {}", file)]
+    #[error("Timer ran out while waiting for message on channel!")]
+    ChannelRecvTimeout(std::sync::mpsc::RecvTimeoutError),
+    #[error("Previewer failed on file: {}", file)]
     PreviewFailed{file: String},
-    #[fail(display = "StalePreviewer for file: {}", file)]
+    #[error("StalePreviewer for file: {}", file)]
     StalePreviewError{file: String},
-    #[fail(display = "Accessed stale value")]
+    #[error("Accessed stale value")]
     StaleError,
-    #[fail(display = "Failed: {}", _0)]
+    #[error("Failed: {}", _0)]
     Error(String),
-    #[fail(display = "Was None!")]
+    #[error("Was None!")]
     NoneError,
-    #[fail(display = "Async Error: {}", _0)]
+    #[error("Async Error: {}", _0)]
     AError(async_value::AError),
-    #[fail(display = "No widget found")]
+    #[error("No widget found")]
     NoWidgetError,
-    #[fail(display = "Path: {:?} not in this directory: {:?}", path, dir)]
+    #[error("Path: {:?} not in this directory: {:?}", path, dir)]
     WrongDirectoryError{ path: PathBuf, dir: PathBuf},
-    #[fail(display = "Widget finnished")]
-    PopupFinnished,
-    #[fail(display = "No completions found")]
+    #[error("Widget finnished")]
+    PopupFinished,
+    #[error("No completions found")]
     NoCompletionsError,
-    #[fail(display = "No more history")]
+    #[error("No more history")]
     NoHistoryError,
-    #[fail(display = "No core for widget")]
+    #[error("No core for widget")]
     NoWidgetCoreError,
-    #[fail(display = "No header for widget")]
+    #[error("No header for widget")]
     NoHeaderError,
-    #[fail(display = "You wanted this!")]
+    #[error("You wanted this!")]
     Quit,
-    #[fail(display = "HBox ratio mismatch: {} widgets, ratio is {:?}", wnum, ratio)]
+    #[error("HBox ratio mismatch: {} widgets, ratio is {:?}", wnum, ratio)]
     HBoxWrongRatioError{ wnum: usize, ratio: Vec<usize> },
-    #[fail(display = "Got wrong widget: {}! Wanted: {}", got, wanted)]
+    #[error("Got wrong widget: {}! Wanted: {}", got, wanted)]
     WrongWidgetError{got: String, wanted: String},
-    #[fail(display = "Strip Prefix Error: {}", error)]
-    StripPrefixError{#[cause] error: std::path::StripPrefixError},
-    #[fail(display = "INofify failed: {}", _0)]
+    #[error("Strip Prefix Error: {}", error)]
+    StripPrefixError{error: std::path::StripPrefixError},
+    #[error("INofify failed: {}", _0)]
     INotifyError(String),
-    #[fail(display = "Tags not loaded yet")]
+    #[error("Tags not loaded yet")]
     TagsNotLoadedYetError,
-    #[fail(display = "Undefined key: {:?}", key)]
+    #[error("Undefined key: {:?}", key)]
     WidgetUndefinedKeyError{key: Key},
-    #[fail(display = "Terminal has been resized!")]
+    #[error("Terminal has been resized!")]
     TerminalResizedError,
-    #[fail(display = "Widget has been resized!")]
+    #[error("Widget has been resized!")]
     WidgetResizedError,
-    #[fail(display = "{}", _0)]
+    #[error("{}", _0)]
     Log(String),
-    #[fail(display = "Metadata already processed")]
+    #[error("Metadata already processed")]
     MetadataProcessedError,
-    #[fail(display = "No files to take from widget")]
+    #[error("No files to take from widget")]
     WidgetNoFilesError,
-    #[fail(display = "Invalid line in settings file: {}", _0)]
+    #[error("Invalid line in settings file: {}", _0)]
     ConfigLineError(String),
-    #[fail(display = "New input in Minibuffer")]
+    #[error("New input in Minibuffer")]
     MiniBufferInputUpdated(String),
-    #[fail(display = "Failed to parse into UTF8")]
+    #[error("Failed to parse into UTF8")]
     UTF8ParseError(std::str::Utf8Error),
-    #[fail(display = "Failed to parse integer!")]
+    #[error("Failed to parse integer!")]
     ParseIntError(std::num::ParseIntError),
-    #[fail(display = "Failed to parse char!")]
+    #[error("Failed to parse char!")]
     ParseCharError(std::char::ParseCharError),
-    #[fail(display = "{}", _0)]
+    #[error("{}", _0)]
     Media(MediaError),
-    #[fail(display = "{}", _0)]
+    #[error("{}", _0)]
     Mime(MimeError),
-    #[fail(display = "{}", _0)]
+    #[error("{}", _0)]
     KeyBind(KeyBindError),
-    #[fail(display = "FileBrowser needs to know about all tab's files to run exec!")]
+    #[error("FileBrowser needs to know about all tab's files to run exec!")]
     FileBrowserNeedTabFiles,
-    #[fail(display = "{}", _0)]
+    #[error("{}", _0)]
     FileError(crate::files::FileError),
-    #[fail(display = "{}", _0)]
-    Nix(#[cause] nix::Error),
-    #[fail(display = "Refresh parent widget!")]
+    #[error("{}", _0)]
+    Nix(nix::Error),
+    #[error("Refresh parent widget!")]
     RefreshParent,
-    #[fail(display = "Refresh parent widget!")]
+    #[error("Refresh parent widget!")]
     MiniBufferEvent(crate::minibuffer::MiniBufferEvent),
+    #[error("Bookmark not found!")]
+    BookmarkNotFound,
+    #[error("No bookmark path found!")]
+    BookmarkPathNotFound,
 }
 
-impl HError {
-    pub fn log<T>(log: &str) -> HResult<T> {
-        Err(HError::Log(String::from(log))).log_and()
+// impl Error for HError {}
+
+impl WError {
+    pub fn log<T>(log: &str) -> WResult<T> {
+        Err(WError::Log(String::from(log))).log_and()
     }
-    pub fn quit() -> HResult<()> {
-        Err(HError::Quit)
+    pub fn quit() -> WResult<()> {
+        Err(WError::Quit)
     }
-    pub fn wrong_ratio<T>(wnum: usize, ratio: Vec<usize>) -> HResult<T> {
-        Err(HError::HBoxWrongRatioError{ wnum, ratio })
+    pub fn wrong_ratio<T>(wnum: usize, ratio: Vec<usize>) -> WResult<T> {
+        Err(WError::HBoxWrongRatioError{ wnum, ratio })
     }
-    pub fn no_widget<T>() -> HResult<T> {
-        Err(HError::NoWidgetError)
+    pub fn no_widget<T>() -> WResult<T> {
+        Err(WError::NoWidgetError)
     }
-    pub fn wrong_widget<T>(got: &str, wanted: &str) -> HResult<T> {
-        Err(HError::WrongWidgetError{ got: got.to_string(),
+    pub fn wrong_widget<T>(got: &str, wanted: &str) -> WResult<T> {
+        Err(WError::WrongWidgetError{ got: got.to_string(),
                                       wanted: wanted.to_string() })
 
     }
-    pub fn popup_finnished<T>() -> HResult<T> {
-        Err(HError::PopupFinnished)
+    pub fn popup_finished<T>() -> WResult<T> {
+        Err(WError::PopupFinished)
     }
-    pub fn tags_not_loaded<T>() -> HResult<T> {
-        Err(HError::TagsNotLoadedYetError)
+    pub fn tags_not_loaded<T>() -> WResult<T> {
+        Err(WError::TagsNotLoadedYetError)
     }
-    pub fn undefined_key<T>(key: Key) -> HResult<T> {
-        Err(HError::WidgetUndefinedKeyError { key })
+    pub fn undefined_key<T>(key: Key) -> WResult<T> {
+        Err(WError::WidgetUndefinedKeyError { key })
     }
-    pub fn wrong_directory<T>(path: PathBuf, dir: PathBuf) -> HResult<T> {
-        Err(HError::WrongDirectoryError{ path,
+    pub fn wrong_directory<T>(path: PathBuf, dir: PathBuf) -> WResult<T> {
+        Err(WError::WrongDirectoryError{ path,
                                          dir })
 
     }
-    pub fn preview_failed<T>(file: &crate::files::File) -> HResult<T> {
+    pub fn preview_failed<T>(file: &crate::files::File) -> WResult<T> {
         let name = file.name.clone();
-        Err(HError::PreviewFailed{ file: name })
+        Err(WError::PreviewFailed{ file: name })
 
     }
 
-    pub fn terminal_resized<T>() -> HResult<T> {
-        Err(HError::TerminalResizedError)
+    pub fn terminal_resized<T>() -> WResult<T> {
+        Err(WError::TerminalResizedError)
     }
 
-    pub fn widget_resized<T>() -> HResult<T> {
-        Err(HError::WidgetResizedError)
+    pub fn widget_resized<T>() -> WResult<T> {
+        Err(WError::WidgetResizedError)
     }
 
-    pub fn stale<T>() -> HResult<T> {
-        Err(HError::StaleError)
+    pub fn stale<T>() -> WResult<T> {
+        Err(WError::StaleError)
     }
 
-    pub fn config_error<T>(line: String) -> HResult<T> {
-        Err(HError::ConfigLineError(line))
+    pub fn config_error<T>(line: String) -> WResult<T> {
+        Err(WError::ConfigLineError(line))
     }
 
-    pub fn metadata_processed<T>() -> HResult<T> {
-        Err(HError::MetadataProcessedError)
+    pub fn metadata_processed<T>() -> WResult<T> {
+        Err(WError::MetadataProcessedError)
     }
 
-    pub fn no_files<T>() -> HResult<T> {
-        Err(HError::WidgetNoFilesError)
+    pub fn no_files<T>() -> WResult<T> {
+        Err(WError::WidgetNoFilesError)
     }
 
-    pub fn input_updated<T>(input: String) -> HResult<T> {
-        Err(HError::MiniBufferInputUpdated(input))
+    pub fn input_updated<T>(input: String) -> WResult<T> {
+        Err(WError::MiniBufferInputUpdated(input))
     }
 
 
 }
 
-#[derive(Fail, Debug, Clone)]
+#[derive(Error, Debug, Clone)]
 pub enum ErrorCause {
-    #[fail(display = "{}", _0)]
+    #[error("{}", _0)]
     Str(String)
 }
 
@@ -191,12 +193,12 @@ lazy_static! {
     static ref LOG: Mutex<Vec<LogEntry>> = Mutex::new(vec![]);
 }
 
-pub fn get_logs() -> HResult<Vec<LogEntry>> {
+pub fn get_logs() -> WResult<Vec<LogEntry>> {
     let logs = LOG.lock().drain(..).collect();
     Ok(logs)
 }
 
-pub fn put_log<L: Into<LogEntry>>(log: L) -> HResult<()> {
+pub fn put_log<L: Into<LogEntry>>(log: L) -> WResult<()> {
     LOG.lock().push(log.into());
     Ok(())
 }
@@ -238,92 +240,88 @@ pub trait ErrorLog where Self: Sized {
 // }
 
 impl<T, E> ErrorLog for Result<T, E>
-where E: Into<HError> + Clone {
+where E: Into<WError> + Clone {
     fn log(self) {
         if let Err(err) = self {
-            let err: HError = err.into();
+            let err: WError = err.into();
             put_log(&err).ok();
         }
     }
     fn log_and(self) -> Self {
         if let Err(ref err) = self {
-            let err: HError = err.clone().into();
+            let err: WError = err.clone().into();
             put_log(&err).ok();
         }
         self
     }
 }
 
-// The following requires nightly
-// impl<E> ErrorLog for E
-// where E: Into<HError> + Clone {
-//     fn log(self) {
-//         let err: HError = self.into();
-//         put_log(&err).ok();
-//
-//     }
-//     fn log_and(self) -> Self {
-//         let err: HError = self.clone().into();
-//         put_log(&err).ok();
-//         self
+impl<E> ErrorLog for E
+where E: Into<WError> + Clone {
+    fn log(self) {
+        let err: WError = self.into();
+        put_log(&err).ok();
+
+    }
+    fn log_and(self) -> Self {
+        let err: WError = self.clone().into();
+        put_log(&err).ok();
+        self
+    }
+}
+
+impl From<std::io::Error> for WError {
+    fn from(error: std::io::Error) -> Self {
+        let err = WError::IoError(format!("{}", error));
+        err
+    }
+}
+
+// impl From<failure::Error> for WError {
+//     fn from(error: failure::Error) -> Self {
+//         let err = WError::Error(format!("{}", error));
+//         err
 //     }
 // }
 //
-
-
-
-impl From<std::io::Error> for HError {
-    fn from(error: std::io::Error) -> Self {
-        let err = HError::IoError(format!("{}", error));
-        err
-    }
-}
-
-impl From<failure::Error> for HError {
-    fn from(error: failure::Error) -> Self {
-        let err = HError::Error(format!("{}", error));
-        err
-    }
-}
-
-impl From<std::sync::mpsc::TryRecvError> for HError {
+impl From<std::sync::mpsc::TryRecvError> for WError {
     fn from(error: std::sync::mpsc::TryRecvError) -> Self {
-        let err = HError::ChannelTryRecvError { error };
+        let err = WError::ChannelTryRecvError { error };
         err
     }
 }
 
-impl From<std::sync::mpsc::RecvError> for HError {
+impl From<std::sync::mpsc::RecvError> for WError {
     fn from(error: std::sync::mpsc::RecvError) -> Self {
-        let err = HError::ChannelRecvError { error };
+        let err = WError::ChannelRecvError { error };
         err
     }
 }
 
-impl From<std::sync::mpsc::RecvTimeoutError> for HError {
+impl From<std::sync::mpsc::RecvTimeoutError> for WError {
     fn from(error: std::sync::mpsc::RecvTimeoutError) -> Self {
-        let err = HError::ChannelRecvTimeout(error);
+        let err = WError::ChannelRecvTimeout(error);
         err
     }
 }
 
-impl<T> From<std::sync::mpsc::SendError<T>> for HError {
+impl<T> From<std::sync::mpsc::SendError<T>> for WError {
     fn from(_error: std::sync::mpsc::SendError<T>) -> Self {
-        let err = HError::ChannelSendError;
+        let err = WError::ChannelSendError;
         err
     }
 }
 
-impl<T> From<std::sync::PoisonError<T>> for HError {
+impl<T> From<std::sync::PoisonError<T>> for WError {
     fn from(_: std::sync::PoisonError<T>) -> Self {
-        let err = HError::MutexError;
+        let err = WError::MutexError;
         err
     }
 }
 
-impl<T> From<std::sync::TryLockError<T>> for HError {
+impl<T> From<std::sync::TryLockError<T>> for WError {
     fn from(_error: std::sync::TryLockError<T>) -> Self {
-        let err = HError::TryLockError;
+        let err = WError::TryLockError;
         err
     }
 }
@@ -336,52 +334,52 @@ impl<T> From<std::sync::TryLockError<T>> for HError {
 //     }
 // }
 
-impl From<std::path::StripPrefixError> for HError {
+impl From<std::path::StripPrefixError> for WError {
     fn from(error: std::path::StripPrefixError) -> Self {
-        let err = HError::StripPrefixError{ error };
+        let err = WError::StripPrefixError{ error };
         err
     }
 }
 
-impl From<notify::Error> for HError {
+impl From<notify::Error> for WError {
     fn from(error: notify::Error) -> Self {
-        let err = HError::INotifyError(format!("{}", error));
+        let err = WError::INotifyError(format!("{}", error));
         err
     }
 }
 
-impl From<async_value::AError> for HError {
+impl From<async_value::AError> for WError {
     fn from(error: async_value::AError) -> Self {
-        let err = HError::AError(error);
+        let err = WError::AError(error);
         err
     }
 }
 
-impl From<std::str::Utf8Error> for HError {
+impl From<std::str::Utf8Error> for WError {
     fn from(error: std::str::Utf8Error) -> Self {
-        let err = HError::UTF8ParseError(error);
+        let err = WError::UTF8ParseError(error);
         err
     }
 }
 
 
-impl From<std::num::ParseIntError> for HError {
+impl From<std::num::ParseIntError> for WError {
     fn from(error: std::num::ParseIntError) -> Self {
-        let err = HError::ParseIntError(error);
+        let err = WError::ParseIntError(error);
         err
     }
 }
 
-impl From<nix::Error> for HError {
+impl From<nix::Error> for WError {
     fn from(error: nix::Error) -> Self {
-        let err = HError::Nix(error);
+        let err = WError::Nix(error);
         err
     }
 }
 
-impl From<std::char::ParseCharError> for HError {
+impl From<std::char::ParseCharError> for WError {
     fn from(error: std::char::ParseCharError) -> Self {
-        let err = HError::ParseCharError(error);
+        let err = WError::ParseCharError(error);
         err
     }
 }
@@ -389,65 +387,66 @@ impl From<std::char::ParseCharError> for HError {
 
 // MIME Errors
 
-#[derive(Fail, Debug, Clone)]
+#[derive(Error, Debug, Clone)]
 pub enum MimeError {
-    #[fail(display = "Need a file to determine MIME type")]
+    #[error("Need a file to determine MIME type")]
     NoFileProvided,
-    #[fail(display = "File access failed! Error: {}", _0)]
-    AccessFailed(Box<HError>),
-    #[fail(display = "No MIME type found for this file",)]
+    #[error("File access failed! Error: {}", _0)]
+    AccessFailed(Box<WError>),
+    #[error("No MIME type found for this file",)]
     NoMimeFound,
-    #[fail(display = "Paniced while trying to find MIME type for: {}!", _0)]
+    #[error("Panicked while trying to find MIME type for: {}!", _0)]
     Panic(String),
 }
 
-impl From<MimeError> for HError {
+impl From<MimeError> for WError {
     fn from(e: MimeError) -> Self {
-        HError::Mime(e)
+        WError::Mime(e)
     }
 }
 
 
-impl From<KeyBindError> for HError {
+impl From<KeyBindError> for WError {
     fn from(e: KeyBindError) -> Self {
-        HError::KeyBind(e)
+        WError::KeyBind(e)
     }
 }
 
-impl From<crate::minibuffer::MiniBufferEvent> for HError {
+impl From<crate::minibuffer::MiniBufferEvent> for WError {
     fn from(e: crate::minibuffer::MiniBufferEvent) -> Self {
-        HError::MiniBufferEvent(e)
+        WError::MiniBufferEvent(e)
     }
 }
 
-
-#[derive(Fail, Debug, Clone)]
+#[derive(Error, Debug, Clone)]
 pub enum KeyBindError {
-    #[fail(display = "Movement has not been defined for this widget")]
+    #[error("Movement has not been defined for this widget")]
     MovementUndefined,
-    #[fail(display = "Keybind defined with wrong key: {} -> {}", _0, _1)]
+    #[error("Keybind defined with wrong key: {} -> {}", _0, _1)]
     WrongKey(String, String),
-    #[fail(display = "Defined keybind for non-existing action: {}", _0)]
+    #[error("Defined keybind for non-existing action: {}", _0)]
     WrongAction(String),
-    #[fail(display = "Failed to parse keybind: {}", _0)]
+    #[error("Failed to parse keybind: {}", _0)]
     ParseKeyError(String),
-    #[fail(display = "Trouble with ini file! Error: {}", _0)]
-    IniError(Arc<ini::ini::Error>),
-    #[fail(display = "Couldn't parse as either char or u8: {}", _0)]
+    #[error("Trouble with ini file! Error: {}", _0)]
+    IniError(Arc<ini::Error>),
+    #[error("Couldn't parse as either char or u8: {}", _0)]
     CharOrNumParseError(String),
-    #[fail(display = "Wanted {}, but got {}!", _0, _1)]
+    #[error("Wanted {}, but got {}!", _0, _1)]
     CharOrNumWrongType(String, String)
 
 }
 
-impl From<ini::ini::Error> for KeyBindError {
-    fn from(err: ini::ini::Error) -> Self {
+impl From<ini::Error> for KeyBindError {
+    fn from(err: ini::Error) -> Self {
         KeyBindError::IniError(Arc::new(err))
     }
 }
 
-impl From<crate::files::FileError> for HError {
+impl From<crate::files::FileError> for WError {
     fn from(err: crate::files::FileError) -> Self {
-        HError::FileError(err)
+        WError::FileError(err)
     }
 }
+
+pub type WResult<T> = Result<T, WError>;

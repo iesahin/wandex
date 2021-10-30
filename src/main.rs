@@ -7,8 +7,7 @@ extern crate termion;
 extern crate unicode_width;
 #[macro_use]
 extern crate lazy_static;
-extern crate failure;
-extern crate failure_derive;
+extern crate thiserror;
 extern crate natord;
 extern crate dirs_2;
 extern crate lscolors;
@@ -77,13 +76,13 @@ mod keybind;
 
 use widget::{Widget, WidgetCore};
 use term::ScreenExt;
-use fail::{HResult, HError, MimeError, ErrorLog};
+use fail::{WResult, WError, MimeError, ErrorLog};
 use file_browser::FileBrowser;
 use tabview::TabView;
 use trait_ext::PathBufMime;
 
 
-fn reset_screen(core: &mut WidgetCore) -> HResult<()> {
+fn reset_screen(core: &mut WidgetCore) -> WResult<()> {
     core.screen.suspend()
 }
 
@@ -98,7 +97,7 @@ fn die_gracefully(core: &WidgetCore) {
     }));
 }
 
-fn main() -> HResult<()> {
+fn main() -> WResult<()> {
     let args = parse_args();
 
     // do this early so it might be ready when needed
@@ -112,7 +111,7 @@ fn main() -> HResult<()> {
     die_gracefully(&core);
 
     match run(core.clone()) {
-        Ok(_) | Err(HError::Quit) => reset_screen(&mut core),
+        Ok(_) | Err(WError::Quit) => reset_screen(&mut core),
         Err(err) => {
             reset_screen(&mut core)?;
             eprintln!("{:?}\n{:?}", err, err.cause());
@@ -121,7 +120,7 @@ fn main() -> HResult<()> {
     }
 }
 
-fn run(mut core: WidgetCore) -> HResult<()> {
+fn run(mut core: WidgetCore) -> WResult<()> {
     core.screen.clear()?;
 
     let core2 = core.clone();
@@ -215,7 +214,7 @@ fn process_args(args: clap::ArgMatches, core: WidgetCore) {
 
     if let Some(path) = path {
         std::env::set_current_dir(&path)
-            .map_err(HError::from)
+            .map_err(WError::from)
             .log();
     }
 
@@ -227,7 +226,7 @@ fn process_args(args: clap::ArgMatches, core: WidgetCore) {
 
 
 
-fn get_mime(path: Option<&str>) -> HResult<()> {
+fn get_mime(path: Option<&str>) -> WResult<()> {
     let path = path.ok_or(MimeError::NoFileProvided)?;
     let path = std::path::PathBuf::from(path);
     path.get_mime()

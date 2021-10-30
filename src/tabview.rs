@@ -1,29 +1,29 @@
 use termion::event::Key;
 
 use crate::widget::{Widget, WidgetCore};
-use crate::fail::{HResult, HError, ErrorLog};
+use crate::fail::{WResult, WError, ErrorLog};
 use crate::coordinates::Coordinates;
 
 pub trait Tabbable {
     type Tab: Widget;
-    fn new_tab(&mut self) -> HResult<()>;
-    fn close_tab(&mut self) -> HResult<()>;
-    fn next_tab(&mut self) -> HResult<()>;
-    fn prev_tab(&mut self) -> HResult<()>;
-    fn goto_tab(&mut self, index: usize) -> HResult<()>;
-    fn on_tab_switch(&mut self) -> HResult<()> {
+    fn new_tab(&mut self) -> WResult<()>;
+    fn close_tab(&mut self) -> WResult<()>;
+    fn next_tab(&mut self) -> WResult<()>;
+    fn prev_tab(&mut self) -> WResult<()>;
+    fn goto_tab(&mut self, index: usize) -> WResult<()>;
+    fn on_tab_switch(&mut self) -> WResult<()> {
         Ok(())
     }
     fn get_tab_names(&self) -> Vec<Option<String>>;
     fn active_tab(&self) -> &Self::Tab;
     fn active_tab_mut(&mut self) -> &mut Self::Tab;
-    fn on_key_sub(&mut self, key: Key) -> HResult<()>;
-    fn on_key(&mut self, key: Key) -> HResult<()> {
+    fn on_key_sub(&mut self, key: Key) -> WResult<()>;
+    fn on_key(&mut self, key: Key) -> WResult<()> {
         self.on_key_sub(key)
     }
-    fn on_refresh(&mut self) -> HResult<()> { Ok(()) }
-    fn on_config_loaded(&mut self) -> HResult<()> { Ok(()) }
-    fn on_new(&mut self) -> HResult<()> { Ok(()) }
+    fn on_refresh(&mut self) -> WResult<()> { Ok(()) }
+    fn on_config_loaded(&mut self) -> WResult<()> { Ok(()) }
+    fn on_new(&mut self) -> WResult<()> { Ok(()) }
 
 }
 
@@ -48,12 +48,12 @@ impl<T> TabView<T> where T: Widget, TabView<T>: Tabbable {
         tabview
     }
 
-    pub fn push_widget(&mut self, widget: T) -> HResult<()> {
+    pub fn push_widget(&mut self, widget: T) -> WResult<()> {
         self.widgets.push(widget);
         Ok(())
     }
 
-    pub fn pop_widget(&mut self) -> HResult<T> {
+    pub fn pop_widget(&mut self) -> WResult<T> {
         let widget = self.widgets.pop()?;
         if self.widgets.len() <= self.active {
             self.active -= 1;
@@ -61,7 +61,7 @@ impl<T> TabView<T> where T: Widget, TabView<T>: Tabbable {
         Ok(widget)
     }
 
-    pub fn remove_widget(&mut self, index: usize) -> HResult<()> {
+    pub fn remove_widget(&mut self, index: usize) -> WResult<()> {
         let len = self.widgets.len();
         if len > 1 {
             self.widgets.remove(index);
@@ -72,7 +72,7 @@ impl<T> TabView<T> where T: Widget, TabView<T>: Tabbable {
         Ok(())
     }
 
-    pub fn goto_tab_(&mut self, index: usize) -> HResult<()> {
+    pub fn goto_tab_(&mut self, index: usize) -> WResult<()> {
         if index < self.widgets.len() {
             self.active = index;
             self.on_tab_switch().log();
@@ -88,7 +88,7 @@ impl<T> TabView<T> where T: Widget, TabView<T>: Tabbable {
         &mut self.widgets[self.active]
     }
 
-    pub fn close_tab_(&mut self) -> HResult<()> {
+    pub fn close_tab_(&mut self) -> WResult<()> {
         self.remove_widget(self.active).log();
         Ok(())
     }
@@ -113,18 +113,18 @@ impl<T> TabView<T> where T: Widget, TabView<T>: Tabbable {
 }
 
 impl<T> Widget for TabView<T> where T: Widget, TabView<T>: Tabbable {
-    fn get_core(&self) -> HResult<&WidgetCore> {
+    fn get_core(&self) -> WResult<&WidgetCore> {
         Ok(&self.core)
     }
-    fn get_core_mut(&mut self) -> HResult<&mut WidgetCore> {
+    fn get_core_mut(&mut self) -> WResult<&mut WidgetCore> {
         Ok(&mut self.core)
     }
 
-    fn config_loaded(&mut self) -> HResult<()> {
+    fn config_loaded(&mut self) -> WResult<()> {
         self.on_config_loaded()
     }
 
-    fn set_coordinates(&mut self, coordinates: &Coordinates) -> HResult<()> {
+    fn set_coordinates(&mut self, coordinates: &Coordinates) -> WResult<()> {
         self.core.coordinates = coordinates.clone();
         for widget in &mut self.widgets {
             widget.set_coordinates(coordinates).log();
@@ -132,7 +132,7 @@ impl<T> Widget for TabView<T> where T: Widget, TabView<T>: Tabbable {
         Ok(())
     }
 
-    fn render_header(&self) -> HResult<String> {
+    fn render_header(&self) -> WResult<String> {
         let xsize = self.get_coordinates()?.xsize();
         let header = self.active_tab_().render_header()?;
         let tab_names = self.get_tab_names();
@@ -163,23 +163,23 @@ impl<T> Widget for TabView<T> where T: Widget, TabView<T>: Tabbable {
                 tabnums))
     }
 
-    fn render_footer(&self) -> HResult<String>
+    fn render_footer(&self) -> WResult<String>
     {
         self.active_tab_().render_footer()
     }
 
-    fn refresh(&mut self) -> HResult<()> {
+    fn refresh(&mut self) -> WResult<()> {
         Tabbable::on_refresh(self).log();
         self.active_tab_mut().refresh()
     }
 
-    fn get_drawlist(&self) -> HResult<String> {
+    fn get_drawlist(&self) -> WResult<String> {
         self.active_tab_().get_drawlist()
     }
 
-    fn on_key(&mut self, key: Key) -> HResult<()> {
+    fn on_key(&mut self, key: Key) -> WResult<()> {
         match self.do_key(key) {
-            Err(HError::WidgetUndefinedKeyError{..}) => Tabbable::on_key(self, key)?,
+            Err(WError::WidgetUndefinedKeyError{..}) => Tabbable::on_key(self, key)?,
             e @ _ => e?
         }
 
@@ -196,7 +196,7 @@ impl<T: Widget> Acting for TabView<T> where TabView<T>: Tabbable {
         self.core.config().keybinds.tab
     }
 
-    fn do_action(&mut self, action: &Self::Action) -> HResult<()> {
+    fn do_action(&mut self, action: &Self::Action) -> WResult<()> {
         use TabAction::*;
 
         match action {

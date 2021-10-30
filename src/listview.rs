@@ -8,7 +8,7 @@ use rayon::prelude::*;
 use async_value::Stale;
 
 use crate::files::{File, Files};
-use crate::fail::{HResult, HError, ErrorLog};
+use crate::fail::{WResult, WError, ErrorLog};
 use crate::term;
 use crate::widget::{Widget, WidgetCore};
 use crate::dirty::Dirtyable;
@@ -19,11 +19,11 @@ pub trait Listable {
     type Item: Debug + PartialEq + Default;
     fn len(&self) -> usize;
     fn render(&self) -> Vec<String>;
-    fn render_header(&self) -> HResult<String> { Ok("".to_string()) }
-    fn render_footer(&self) -> HResult<String> { Ok("".to_string()) }
-    fn on_new(&mut self) -> HResult<()> { Ok(()) }
-    fn on_refresh(&mut self) -> HResult<()> { Ok(()) }
-    fn on_key(&mut self, _key: Key) -> HResult<()> { Ok(()) }
+    fn render_header(&self) -> WResult<String> { Ok("".to_string()) }
+    fn render_footer(&self) -> WResult<String> { Ok("".to_string()) }
+    fn on_new(&mut self) -> WResult<()> { Ok(()) }
+    fn on_refresh(&mut self) -> WResult<()> { Ok(()) }
+    fn on_key(&mut self, _key: Key) -> WResult<()> { Ok(()) }
 }
 
 use crate::keybind::{Acting, Bindings, FileListAction, Movement};
@@ -36,7 +36,7 @@ impl Acting for ListView<Files> {
         self.core.config().keybinds.filelist
     }
 
-    fn movement(&mut self, movement: &Movement) -> HResult<()> {
+    fn movement(&mut self, movement: &Movement) -> WResult<()> {
         use Movement::*;
 
         let pos = self.get_selection();
@@ -58,7 +58,7 @@ impl Acting for ListView<Files> {
         Ok(())
     }
 
-    fn do_action(&mut self, action: &Self::Action) -> HResult<()> {
+    fn do_action(&mut self, action: &Self::Action) -> WResult<()> {
         use FileListAction::*;
 
         match action {
@@ -94,13 +94,13 @@ impl Listable for ListView<Files> {
         self.render()
     }
 
-    fn on_new(&mut self) -> HResult<()> {
+    fn on_new(&mut self) -> WResult<()> {
         let show_hidden = self.core.config().show_hidden();
         self.content.show_hidden = show_hidden;
         Ok(())
     }
 
-    fn on_refresh(&mut self) -> HResult<()> {
+    fn on_refresh(&mut self) -> WResult<()> {
         if self.content.len() == 0 {
             let path = &self.content.directory.path;
             let placeholder = File::new_placeholder(&path)?;
@@ -129,7 +129,7 @@ impl Listable for ListView<Files> {
         Ok(())
     }
 
-    fn on_key(&mut self, key: Key) -> HResult<()> {
+    fn on_key(&mut self, key: Key) -> WResult<()> {
         self.do_key(key)
     }
 }
@@ -293,7 +293,7 @@ impl FileListBuilder {
         self
     }
 
-    pub fn build(mut self) -> HResult<ListView<Files>> {
+    pub fn build(mut self) -> WResult<ListView<Files>> {
         let c = &self.cache;
         let s = self.stale.clone();
         let core = self.core;
@@ -435,7 +435,7 @@ impl ListView<Files>
                 let dir = &self.content.directory.path;
                 let file = file.path;
 
-                HError::wrong_directory::<()>(dir.clone(),
+                WError::wrong_directory::<()>(dir.clone(),
                                               file.clone()).log();
                 let file = self.content
                                 .iter_files()
@@ -585,7 +585,7 @@ impl ListView<Files>
         self.refresh().log();
     }
 
-    fn toggle_tag(&mut self) -> HResult<()> {
+    fn toggle_tag(&mut self) -> WResult<()> {
         self.selected_file_mut().toggle_tag()?;
 
         let oldpos = self.get_selection();
@@ -599,7 +599,7 @@ impl ListView<Files>
         Ok(())
     }
 
-    fn search_file(&mut self) -> HResult<()> {
+    fn search_file(&mut self) -> WResult<()> {
         let selected_file = self.clone_selected_file();
 
         loop {
@@ -610,11 +610,11 @@ impl ListView<Files>
                     // Only set this, search is on-the-fly
                     self.searching = Some(input);
                 }
-                Err(HError::RefreshParent) => {
+                Err(WError::RefreshParent) => {
                     self.refresh().log();
                     continue;
                 }
-                Err(HError::MiniBufferEvent(ev)) => {
+                Err(WError::MiniBufferEvent(ev)) => {
                     use crate::minibuffer::MiniBufferEvent::*;
 
                     match ev {
@@ -650,7 +650,7 @@ impl ListView<Files>
         Ok(())
     }
 
-    fn search_next(&mut self) -> HResult<()> {
+    fn search_next(&mut self) -> WResult<()> {
         if self.searching.is_none() {
             self.core.show_status("No search pattern set!").log();
         }
@@ -678,7 +678,7 @@ impl ListView<Files>
         Ok(())
     }
 
-    fn search_prev(&mut self) -> HResult<()> {
+    fn search_prev(&mut self) -> WResult<()> {
         if self.searching.is_none() {
             self.core.show_status("No search pattern set!").log();
         }
@@ -732,7 +732,7 @@ impl ListView<Files>
         }
     }
 
-    fn filter(&mut self) -> HResult<()> {
+    fn filter(&mut self) -> WResult<()> {
         use crate::minibuffer::MiniBufferEvent::*;
 
         let selected_file = self.selected_file().clone();
@@ -742,7 +742,7 @@ impl ListView<Files>
             let filter = self.core.minibuffer_continuous("filter");
 
             match filter {
-                Err(HError::MiniBufferEvent(event)) => {
+                Err(WError::MiniBufferEvent(event)) => {
                     match event {
                         Done(filter) => {
                             self.core.show_status(&format!("Filtering with: \"{}\"",
@@ -814,7 +814,7 @@ impl ListView<Files>
             let size = file.calculate_size();
             let (size, unit) = match size {
                 Ok((size, unit)) => (size.to_string(), unit),
-                Err(HError::FileError(FileError::MetaPending)) => {
+                Err(WError::FileError(FileError::MetaPending)) => {
                     let ticks = crate::files::tick_str();
                     (String::from(ticks), "")
                 },
@@ -918,7 +918,7 @@ impl ListView<Files>
             .collect()
     }
 
-    fn refresh_files(&mut self) -> HResult<()> {
+    fn refresh_files(&mut self) -> WResult<()> {
         let file = self.clone_selected_file();
 
         if let Ok(Some(_)) = self.content.get_refresh() {
@@ -940,13 +940,13 @@ impl<T> Widget for ListView<T>
 where
     ListView<T>: Listable
 {
-    fn get_core(&self) -> HResult<&WidgetCore> {
+    fn get_core(&self) -> WResult<&WidgetCore> {
         Ok(&self.core)
     }
-    fn get_core_mut(&mut self) -> HResult<&mut WidgetCore> {
+    fn get_core_mut(&mut self) -> WResult<&mut WidgetCore> {
         Ok(&mut self.core)
     }
-    fn refresh(&mut self) -> HResult<()> {
+    fn refresh(&mut self) -> WResult<()> {
         self.on_refresh().log();
 
         if self.selection >= self.len() && self.len() != 0 {
@@ -956,15 +956,15 @@ where
         Ok(())
     }
 
-    fn render_header(&self) -> HResult<String> {
+    fn render_header(&self) -> WResult<String> {
         Listable::render_header(self)
     }
 
-    fn render_footer(&self) -> HResult<String> {
+    fn render_footer(&self) -> WResult<String> {
         Listable::render_footer(self)
     }
 
-    fn get_drawlist(&self) -> HResult<String> {
+    fn get_drawlist(&self) -> WResult<String> {
         let mut output = term::reset();
         let (xpos, ypos) = self.get_coordinates().unwrap().position().position();
 
@@ -996,7 +996,7 @@ where
         Ok(output)
     }
 
-    fn on_key(&mut self, key: Key) -> HResult<()> {
+    fn on_key(&mut self, key: Key) -> WResult<()> {
         Listable::on_key(self, key)
     }
 }

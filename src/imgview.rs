@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 
 use crate::widget::{Widget, WidgetCore};
 use crate::coordinates::Coordinates;
-use crate::fail::{HResult, ErrorCause};
+use crate::fail::{WResult, ErrorCause};
 use crate::mediaview::MediaError;
 
 
@@ -23,7 +23,7 @@ pub struct ImgView {
 }
 
 impl ImgView {
-    pub fn new_from_file(core: WidgetCore, file: &Path) -> HResult<ImgView> {
+    pub fn new_from_file(core: WidgetCore, file: &Path) -> WResult<ImgView> {
         let mut view = ImgView {
             core: core,
             buffer: vec![],
@@ -34,7 +34,7 @@ impl ImgView {
         Ok(view)
     }
 
-    pub fn encode_file(&mut self) -> HResult<()> {
+    pub fn encode_file(&mut self) -> WResult<()> {
         let (xsize, ysize) = self.core.coordinates.size_u();
         let (xpix, ypix) = self.core.coordinates.size_pixels()?;
         let cell_ratio = crate::term::cell_ratio()?;
@@ -130,15 +130,15 @@ impl ImgView {
 
 
 impl Widget for ImgView {
-    fn get_core(&self) -> HResult<&WidgetCore> {
+    fn get_core(&self) -> WResult<&WidgetCore> {
         Ok(&self.core)
     }
 
-    fn get_core_mut(&mut self) -> HResult<&mut WidgetCore> {
+    fn get_core_mut(&mut self) -> WResult<&mut WidgetCore> {
         Ok(&mut self.core)
     }
 
-    fn set_coordinates(&mut self, coordinates: &Coordinates) -> HResult<()> {
+    fn set_coordinates(&mut self, coordinates: &Coordinates) -> WResult<()> {
         if &self.core.coordinates == coordinates { return Ok(()) }
 
         self.core.coordinates = coordinates.clone();
@@ -149,12 +149,12 @@ impl Widget for ImgView {
         Ok(())
     }
 
-    fn refresh(&mut self) -> HResult<()> {
+    fn refresh(&mut self) -> WResult<()> {
 
         Ok(())
     }
 
-    fn get_drawlist(&self) -> HResult<String> {
+    fn get_drawlist(&self) -> WResult<String> {
         let (xpos, ypos) = self.core.coordinates.position_u();
 
         let mut draw = self.buffer

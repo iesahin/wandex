@@ -19,7 +19,7 @@ use crate::coordinates::Coordinates;
 use crate::preview::AsyncWidget;
 use crate::dirty::Dirtyable;
 use crate::hbox::HBox;
-use crate::fail::{HResult, HError, ErrorLog};
+use crate::fail::{WResult, WError, ErrorLog};
 use crate::term::{self, ScreenExt};
 use crate::files::File;
 
@@ -127,7 +127,7 @@ impl PartialEq for Process {
 }
 
 impl Process {
-    fn read_proc(&mut self) -> HResult<()> {
+    fn read_proc(&mut self) -> WResult<()> {
         let handle = self.handle.clone();
         let output = self.output.clone();
         let status = self.status.clone();
@@ -136,10 +136,10 @@ impl Process {
         let cmd = self.cmd.clone();
         let pid = self.handle.lock().id();
 
-        std::thread::spawn(move || -> HResult<()> {
+        std::thread::spawn(move || -> WResult<()> {
             let stdout = handle.lock().stdout.take()?;
             let mut stdout = BufReader::new(stdout);
-            let mut processor = move |cmd, sender: &Sender<Events>| -> HResult<()> {
+            let mut processor = move |cmd, sender: &Sender<Events>| -> WResult<()> {
                 loop {
                     let buffer = stdout.fill_buf()?;
                     let len = buffer.len();
@@ -207,14 +207,14 @@ impl Listable for ListView<Vec<Process>> {
             self.render_proc(proc).unwrap()
         }).collect()
     }
-    fn on_refresh(&mut self) -> HResult<()> {
+    fn on_refresh(&mut self) -> WResult<()> {
         self.core.set_dirty();
         Ok(())
     }
 }
 
 impl ListView<Vec<Process>> {
-    fn run_proc_subshell(&mut self, mut cmd: Cmd) -> HResult<()> {
+    fn run_proc_subshell(&mut self, mut cmd: Cmd) -> WResult<()> {
         let shell = std::env::var("SHELL").unwrap_or("sh".into());
         let home = crate::paths::home_path()?.into_os_string();
         let fg = cmd.cmd.as_bytes().ends_with(b"!");
@@ -255,7 +255,7 @@ impl ListView<Vec<Process>> {
         }
     }
 
-    fn run_proc_raw(&mut self, cmd: Cmd) -> HResult<()> {
+    fn run_proc_raw(&mut self, cmd: Cmd) -> WResult<()> {
         let real_cmd = cmd.cmd;
         let short_cmd = cmd.short_cmd
             .unwrap_or(real_cmd
@@ -301,7 +301,7 @@ impl ListView<Vec<Process>> {
         Ok(())
     }
 
-    fn run_proc_raw_fg(&mut self, cmd: Cmd) -> HResult<()> {
+    fn run_proc_raw_fg(&mut self, cmd: Cmd) -> WResult<()> {
         let real_cmd = cmd.cmd;
         let short_cmd = cmd.short_cmd
                            .unwrap_or(real_cmd
@@ -362,13 +362,13 @@ impl ListView<Vec<Process>> {
         Ok(())
     }
 
-    fn kill_proc(&mut self) -> HResult<()> {
+    fn kill_proc(&mut self) -> WResult<()> {
         let proc = self.selected_proc()?;
         proc.handle.lock().kill()?;
         Ok(())
     }
 
-    fn remove_proc(&mut self) -> HResult<()> {
+    fn remove_proc(&mut self) -> WResult<()> {
         self.kill_proc().ok();
         let selection = self.get_selection();
         self.content.remove(selection);
@@ -380,7 +380,7 @@ impl ListView<Vec<Process>> {
         self.content.get_mut(selection)
     }
 
-    pub fn render_proc(&self, proc: &Process) -> HResult<String> {
+    pub fn render_proc(&self, proc: &Process) -> WResult<String> {
         let pid = proc.handle.lock().id();
         let status = match *proc.status.lock() {
             Some(status) => format!("{}", status),
@@ -420,25 +420,25 @@ enum ProcViewWidgets {
 }
 
 impl Widget for ProcViewWidgets {
-    fn get_core(&self) -> HResult<&WidgetCore> {
+    fn get_core(&self) -> WResult<&WidgetCore> {
         match self {
             ProcViewWidgets::List(widget) => widget.get_core(),
             ProcViewWidgets::TextView(widget) => widget.get_core()
         }
     }
-    fn get_core_mut(&mut self) -> HResult<&mut WidgetCore> {
+    fn get_core_mut(&mut self) -> WResult<&mut WidgetCore> {
         match self {
             ProcViewWidgets::List(widget) => widget.get_core_mut(),
             ProcViewWidgets::TextView(widget) => widget.get_core_mut()
         }
     }
-    fn refresh(&mut self) -> HResult<()> {
+    fn refresh(&mut self) -> WResult<()> {
         match self {
             ProcViewWidgets::List(widget) => widget.refresh(),
             ProcViewWidgets::TextView(widget) => widget.refresh()
         }
     }
-    fn get_drawlist(&self) -> HResult<String> {
+    fn get_drawlist(&self) -> WResult<String> {
         match self {
             ProcViewWidgets::List(widget) => widget.get_drawlist(),
             ProcViewWidgets::TextView(widget) => widget.get_drawlist()
@@ -508,17 +508,17 @@ impl ProcView {
         self.hbox.get_textview()
     }
 
-    pub fn run_proc_subshell(&mut self, cmd: Cmd) -> HResult<()> {
+    pub fn run_proc_subshell(&mut self, cmd: Cmd) -> WResult<()> {
         self.get_listview_mut().run_proc_subshell(cmd)?;
         Ok(())
     }
 
-    pub fn run_proc_raw(&mut self, cmd: Cmd) -> HResult<()> {
+    pub fn run_proc_raw(&mut self, cmd: Cmd) -> WResult<()> {
         self.get_listview_mut().run_proc_raw(cmd)?;
         Ok(())
     }
 
-    pub fn remove_proc(&mut self) -> HResult<()> {
+    pub fn remove_proc(&mut self) -> WResult<()> {
         if self.get_listview_mut().content.len() == 0 { return Ok(()) }
         self.get_listview_mut().remove_proc()?;
         self.get_textview().get_core()?.clear().log();
@@ -527,7 +527,7 @@ impl ProcView {
         Ok(())
     }
 
-    fn show_output(&mut self) -> HResult<()> {
+    fn show_output(&mut self) -> WResult<()> {
         if Some(self.get_listview_mut().get_selection()) == self.viewing {
             return Ok(());
         }
@@ -547,56 +547,56 @@ impl ProcView {
         Ok(())
     }
 
-    pub fn toggle_follow(&mut self) -> HResult<()> {
+    pub fn toggle_follow(&mut self) -> WResult<()> {
         self.get_textview().widget_mut()?.toggle_follow();
         Ok(())
     }
 
-    pub fn scroll_up(&mut self) -> HResult<()> {
+    pub fn scroll_up(&mut self) -> WResult<()> {
         self.get_textview().widget_mut()?.scroll_up();
         Ok(())
     }
 
-    pub fn scroll_down(&mut self) -> HResult<()> {
+    pub fn scroll_down(&mut self) -> WResult<()> {
         self.get_textview().widget_mut()?.scroll_down();
         Ok(())
     }
 
-    pub fn page_up(&mut self) -> HResult<()> {
+    pub fn page_up(&mut self) -> WResult<()> {
         self.get_textview().widget_mut()?.page_up();
         Ok(())
     }
 
-    pub fn page_down(&mut self) -> HResult<()> {
+    pub fn page_down(&mut self) -> WResult<()> {
         self.get_textview().widget_mut()?.page_down();
         Ok(())
     }
 
-    pub fn scroll_top(&mut self) -> HResult<()> {
+    pub fn scroll_top(&mut self) -> WResult<()> {
         self.get_textview().widget_mut()?.scroll_top();
         Ok(())
     }
 
-    pub fn scroll_bottom(&mut self) -> HResult<()> {
+    pub fn scroll_bottom(&mut self) -> WResult<()> {
         self.get_textview().widget_mut()?.scroll_bottom();
         Ok(())
     }
 }
 
 impl Widget for ProcView {
-    fn get_core(&self) -> HResult<&WidgetCore> {
+    fn get_core(&self) -> WResult<&WidgetCore> {
         Ok(&self.core)
     }
-    fn get_core_mut(&mut self) -> HResult<&mut WidgetCore> {
+    fn get_core_mut(&mut self) -> WResult<&mut WidgetCore> {
         Ok(&mut self.core)
     }
-    fn set_coordinates(&mut self, coordinates: &Coordinates) -> HResult<()> {
+    fn set_coordinates(&mut self, coordinates: &Coordinates) -> WResult<()> {
         self.core.coordinates = coordinates.clone();
         self.hbox.core.coordinates = coordinates.clone();
         self.hbox.set_coordinates(&coordinates)
     }
 
-    fn render_header(&self) -> HResult<String> {
+    fn render_header(&self) -> WResult<String> {
         let listview = self.get_listview();
         let procs_num = listview.len();
         let procs_running = listview
@@ -611,7 +611,7 @@ impl Widget for ProcView {
         Ok(header)
     }
 
-    fn render_footer(&self) -> HResult<String> {
+    fn render_footer(&self) -> WResult<String> {
         let listview = self.get_listview();
         let selection = listview.get_selection();
         let xsize = self.core.coordinates.xsize_u();
@@ -655,7 +655,7 @@ impl Widget for ProcView {
         } else { Ok("No proccesses".to_string()) }
     }
 
-    fn refresh(&mut self) -> HResult<()> {
+    fn refresh(&mut self) -> WResult<()> {
         self.hbox.refresh().log();
 
         if self.get_listview().len() > 0 {
@@ -666,10 +666,10 @@ impl Widget for ProcView {
 
         Ok(())
     }
-    fn get_drawlist(&self) -> HResult<String> {
+    fn get_drawlist(&self) -> WResult<String> {
         self.hbox.get_drawlist()
     }
-    fn on_key(&mut self, key: Key) -> HResult<()> {
+    fn on_key(&mut self, key: Key) -> WResult<()> {
         self.do_key(key)?;
         self.refresh().log();
         self.draw().log();
@@ -689,17 +689,17 @@ impl Acting for ProcView {
         self.core.config().keybinds.process
     }
 
-    fn movement(&mut self, movement: &Movement) -> HResult<()> {
+    fn movement(&mut self, movement: &Movement) -> WResult<()> {
         self.get_listview_mut().movement(movement)
     }
 
-    fn do_action(&mut self, action: &Self::Action) -> HResult<()> {
+    fn do_action(&mut self, action: &Self::Action) -> WResult<()> {
         use ProcessAction::*;
 
         match action {
             Close => { self.animator.set_stale().log();
                        self.core.clear().log();
-                       Err(HError::PopupFinnished)? }
+                       Err(WError::PopupFinished)? }
             Remove => self.remove_proc()?,
             Kill => self.get_listview_mut().kill_proc()?,
             FollowOutput => self.toggle_follow()?,
@@ -723,7 +723,7 @@ impl Acting for ListView<Vec<Process>> {
         self.core.config().keybinds.process
     }
 
-    fn movement(&mut self, movement: &Movement) -> HResult<()> {
+    fn movement(&mut self, movement: &Movement) -> WResult<()> {
         use Movement::*;
 
         match movement {
@@ -739,7 +739,7 @@ impl Acting for ListView<Vec<Process>> {
         Ok(())
     }
 
-    fn do_action(&mut self, _action: &Self::Action) -> HResult<()> {
+    fn do_action(&mut self, _action: &Self::Action) -> WResult<()> {
         Ok(())
     }
 }

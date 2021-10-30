@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::fail::{HResult, MimeError};
+use crate::fail::{WResult, MimeError};
 use crate::files::File;
 
 
@@ -28,11 +28,11 @@ impl<T> ExtractResult<T> for Result<T,T> {
 
 // To get MIME from Path without hassle
 pub trait PathBufMime {
-    fn get_mime(&self) -> HResult<String>;
+    fn get_mime(&self) -> WResult<String>;
 }
 
 impl PathBufMime for PathBuf {
-    fn get_mime(&self) -> HResult<String> {
+    fn get_mime(&self) -> WResult<String> {
         let file = File::new_from_path(&self)
             .map_err(|e| MimeError::AccessFailed(Box::new(e)))?;
 

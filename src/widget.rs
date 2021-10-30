@@ -9,7 +9,7 @@ use parking_lot::{Mutex, RwLock};
 
 
 use crate::coordinates::{Coordinates, Position, Size};
-use crate::fail::{HResult, HError, ErrorLog};
+use crate::fail::{WResult, WError, ErrorLog};
 use crate::minibuffer::MiniBuffer;
 use crate::term;
 use crate::term::{Screen, ScreenExt};
@@ -62,7 +62,7 @@ pub struct WidgetCore {
 }
 
 impl WidgetCore {
-    pub fn new() -> HResult<WidgetCore> {
+    pub fn new() -> WResult<WidgetCore> {
         let screen = Screen::new()?;
         let (xsize, ysize) = screen.size()?;
         let coords = Coordinates::new_at(term::xsize(),
@@ -100,7 +100,7 @@ impl WidgetCore {
         self.event_sender.lock().clone()
     }
 
-    pub fn draw_status(&self) -> HResult<()> {
+    pub fn draw_status(&self) -> WResult<()> {
         let xsize = term::xsize_u();
         let status = match self.status_bar_content.lock().as_ref() {
             Some(status) => status.to_string(),
@@ -119,8 +119,8 @@ impl WidgetCore {
         Ok(())
     }
 
-    pub fn show_status(&self, status: &str) -> HResult<()> {
-        HError::log::<()>(status).ok();
+    pub fn show_status(&self, status: &str) -> WResult<()> {
+        WError::log::<()>(status).ok();
         {
             let mut status_content = self.status_bar_content.lock();
             *status_content = Some(status.to_string());
@@ -129,14 +129,14 @@ impl WidgetCore {
         Ok(())
     }
 
-    pub fn clear_status(&self) -> HResult<()> {
+    pub fn clear_status(&self) -> WResult<()> {
         if self.status_bar_content.lock().take().is_some() {
             self.draw_status().log();
         }
         Ok(())
     }
 
-    pub fn minibuffer_clear(&self) -> HResult<()> {
+    pub fn minibuffer_clear(&self) -> WResult<()> {
         self.minibuffer
             .lock()
             .as_mut()?
@@ -145,7 +145,7 @@ impl WidgetCore {
         Ok(())
     }
 
-    pub fn minibuffer(&self, query: &str) -> HResult<String> {
+    pub fn minibuffer(&self, query: &str) -> WResult<String> {
         let answer = self.minibuffer
             .lock()
             .as_mut()?
@@ -155,7 +155,7 @@ impl WidgetCore {
         answer
     }
 
-    pub fn minibuffer_continuous(&self, query: &str) -> HResult<String> {
+    pub fn minibuffer_continuous(&self, query: &str) -> WResult<String> {
         let answer = self.minibuffer
             .lock()
             .as_mut()?
@@ -165,16 +165,16 @@ impl WidgetCore {
         answer
     }
 
-    pub fn screen(&self) -> HResult<Screen> {
+    pub fn screen(&self) -> WResult<Screen> {
         Ok(self.screen.clone())
     }
 
-    pub fn clear(&self) -> HResult<()> {
+    pub fn clear(&self) -> WResult<()> {
         let clearlist = self.get_clearlist()?;
         self.write_to_screen(&clearlist)
     }
 
-    pub fn get_clearlist(&self) -> HResult<String> {
+    pub fn get_clearlist(&self) -> WResult<String> {
         let (xpos, ypos) = self.coordinates.u16position();
         let (xsize, ysize) = self.coordinates.u16size();
         let endpos = ypos + ysize;
@@ -192,7 +192,7 @@ impl WidgetCore {
             .collect())
     }
 
-    pub fn write_to_screen(&self, s: &str) -> HResult<()> {
+    pub fn write_to_screen(&self, s: &str) -> WResult<()> {
         let mut screen = self.screen()?;
         screen.write_str(s)
     }
@@ -202,7 +202,7 @@ impl WidgetCore {
             .unwrap_or_else(|_| Config::new())
     }
 
-    fn get_conf(&self) -> HResult<Config> {
+    fn get_conf(&self) -> WResult<Config> {
         let conf = self.config
                        .read()
                        .get()?
@@ -225,16 +225,16 @@ impl Dirtyable for WidgetCore {
 
 
 pub trait Widget {
-    fn get_core(&self) -> HResult<&WidgetCore>; // {
+    fn get_core(&self) -> WResult<&WidgetCore>; // {
     //     Err(HError::NoWidgetCoreError(Backtrace::new()))
     // }
-    fn get_core_mut(&mut self) -> HResult<&mut WidgetCore> ;// {
+    fn get_core_mut(&mut self) -> WResult<&mut WidgetCore> ;// {
     //     Err(HError::NoWidgetCoreError(Backtrace::new()))
     // }
-    fn get_coordinates(&self) -> HResult<&Coordinates> {
+    fn get_coordinates(&self) -> WResult<&Coordinates> {
         Ok(&self.get_core()?.coordinates)
     }
-    fn set_coordinates(&mut self, coordinates: &Coordinates) -> HResult<()> {
+    fn set_coordinates(&mut self, coordinates: &Coordinates) -> WResult<()> {
         let core = &mut self.get_core_mut()?;
         if &core.coordinates != coordinates {
             core.coordinates = coordinates.clone();
@@ -242,20 +242,20 @@ pub trait Widget {
         }
         Ok(())
     }
-    fn render_header(&self) -> HResult<String> {
-        Err(HError::NoHeaderError)
+    fn render_header(&self) -> WResult<String> {
+        Err(WError::NoHeaderError)
     }
-    fn render_footer(&self) -> HResult<String> {
-        Err(HError::NoHeaderError)
+    fn render_footer(&self) -> WResult<String> {
+        Err(WError::NoHeaderError)
     }
-    fn refresh(&mut self) -> HResult<()>;
-    fn get_drawlist(&self) -> HResult<String>;
-    fn after_draw(&self) -> HResult<()> { Ok(()) }
-    fn config_loaded(&mut self) -> HResult<()> { Ok(()) }
+    fn refresh(&mut self) -> WResult<()>;
+    fn get_drawlist(&self) -> WResult<String>;
+    fn after_draw(&self) -> WResult<()> { Ok(()) }
+    fn config_loaded(&mut self) -> WResult<()> { Ok(()) }
 
 
 
-    fn on_event(&mut self, event: Event) -> HResult<()> {
+    fn on_event(&mut self, event: Event) -> WResult<()> {
         self.get_core()?.clear_status().log();
         match event {
             Event::Key(key) => self.on_key(key),
@@ -264,36 +264,36 @@ pub trait Widget {
         }
     }
 
-    fn on_key(&mut self, key: Key) -> HResult<()> {
+    fn on_key(&mut self, key: Key) -> WResult<()> {
         match key {
             _ => { self.bad(Event::Key(key))? },
         }
         Ok(())
     }
 
-    fn on_mouse(&mut self, event: MouseEvent) -> HResult<()> {
+    fn on_mouse(&mut self, event: MouseEvent) -> WResult<()> {
         match event {
             _ => { self.bad(Event::Mouse(event)).unwrap() },
         }
         Ok(())
     }
 
-    fn on_wtf(&mut self, event: Vec<u8>) -> HResult<()> {
+    fn on_wtf(&mut self, event: Vec<u8>) -> WResult<()> {
         match event {
             _ => { self.bad(Event::Unsupported(event)).unwrap() },
         }
         Ok(())
     }
 
-    fn bad(&mut self, event: Event) -> HResult<()> {
+    fn bad(&mut self, event: Event) -> WResult<()> {
         self.get_core()?.show_status(&format!("Stop it!! {:?} does nothing!",
                                               event)).log();
         if let Event::Key(key) = event {
-            HError::undefined_key(key)
+            WError::undefined_key(key)
         } else { Ok(()) }
     }
 
-    fn get_header_drawlist(&mut self) -> HResult<String> {
+    fn get_header_drawlist(&mut self) -> WResult<String> {
         Ok(format!(
             "{}{}{:xsize$}{}{}",
             crate::term::goto_xy(1, 1),
@@ -305,7 +305,7 @@ pub trait Widget {
         ))
     }
 
-    fn get_footer_drawlist(&mut self) -> HResult<String> {
+    fn get_footer_drawlist(&mut self) -> WResult<String> {
         let xsize = self.get_coordinates()?.xsize();
         let ypos = crate::term::ysize();
         Ok(format!(
@@ -320,7 +320,7 @@ pub trait Widget {
 
 
 
-    fn get_redraw_empty_list(&self, lines: usize) -> HResult<String> {
+    fn get_redraw_empty_list(&self, lines: usize) -> WResult<String> {
         let (xpos, ypos) = self.get_coordinates()?.u16position();
         let (xsize, ysize) = self.get_coordinates()?.u16size();
 
@@ -337,7 +337,7 @@ pub trait Widget {
             .collect())
     }
 
-    fn popup(&mut self) -> HResult<()> {
+    fn popup(&mut self) -> WResult<()> {
         // Image will draw over widget otherwise
         if self.get_core()?.config().graphics == "kitty" {
             let ypos = self.get_coordinates()?.ypos();
@@ -345,7 +345,7 @@ pub trait Widget {
         }
         let result = self.run_widget();
         match result {
-            Err(HError::RefreshParent) => {},
+            Err(WError::RefreshParent) => {},
             _ => self.get_core()?.clear().log()
         }
 
@@ -353,11 +353,11 @@ pub trait Widget {
         result
     }
 
-    fn popup_finnished(&self) -> HResult<()> {
-        HError::popup_finnished()
+    fn popup_finnished(&self) -> WResult<()> {
+        WError::popup_finished()
     }
 
-    fn run_widget(&mut self) -> HResult<()> {
+    fn run_widget(&mut self) -> WResult<()> {
         let (tx_event, rx_event) = channel();
         self.get_core()?
             .get_sender()
@@ -372,17 +372,17 @@ pub trait Widget {
             match event {
                 Events::InputEvent(input) => {
                     match self.on_event(input) {
-                        err @ Err(HError::PopupFinnished) |
-                        err @ Err(HError::Quit) |
-                        err @ Err(HError::WidgetResizedError) => err?,
-                        event @ Err(HError::MiniBufferEvent(_)) => event?,
+                        err @ Err(WError::PopupFinished) |
+                        err @ Err(WError::Quit) |
+                        err @ Err(WError::WidgetResizedError) => err?,
+                        event @ Err(WError::MiniBufferEvent(_)) => event?,
                         err @ Err(_) => err.log(),
                         Ok(_) => {}
                     }
                     self.get_core()?.get_sender().send(Events::RequestInput)?;
                 }
                 Events::WidgetReady => {
-                    return Err(HError::RefreshParent);
+                    return Err(WError::RefreshParent);
                 }
                 Events::Status(status) => {
                     self.get_core()?.show_status(&status).log();
@@ -390,12 +390,12 @@ pub trait Widget {
                 Events::TerminalResized => {
                     self.get_core()?.screen()?.clear().log();
                     match self.resize() {
-                        err @ Err(HError::TerminalResizedError) => err?,
+                        err @ Err(WError::TerminalResizedError) => err?,
                         _ => {}
                     }
                 }
                 Events::InputUpdated(input) => {
-                    HError::input_updated(input)?
+                    WError::input_updated(input)?
                 }
                 Events::ConfigLoaded => {
                     self.get_core_mut()?
@@ -413,7 +413,7 @@ pub trait Widget {
     }
 
 
-    fn animate_slide_up(&mut self, animator: Option<&Stale>) -> HResult<()> {
+    fn animate_slide_up(&mut self, animator: Option<&Stale>) -> WResult<()> {
         if !self.get_core()?.config().animate() { return Ok(()); }
 
         let coords = self.get_coordinates()?.clone();
@@ -464,7 +464,7 @@ pub trait Widget {
         Ok(())
     }
 
-    fn draw(&mut self) -> HResult<()> {
+    fn draw(&mut self) -> WResult<()> {
         let output =
             self.get_drawlist().unwrap_or("".to_string()) +
             &self.get_header_drawlist().unwrap_or("".to_string()) +
@@ -474,7 +474,7 @@ pub trait Widget {
         Ok(())
     }
 
-    fn handle_input(&mut self) -> HResult<()> {
+    fn handle_input(&mut self) -> WResult<()> {
         let (tx_internal_event, rx_internal_event) = channel();
         let rx_global_event = self.get_core()?.event_receiver.lock().take()?;
 
@@ -484,7 +484,7 @@ pub trait Widget {
             match event {
                 Events::InputEvent(event) => {
                     match self.on_event(event) {
-                        Err(HError::Quit) => { HError::quit()?; },
+                        Err(WError::Quit) => { WError::quit()?; },
                         _ => {}
                     }
                     self.get_core()?.get_sender().send(Events::RequestInput)?;
@@ -515,7 +515,7 @@ pub trait Widget {
         Ok(())
     }
 
-    fn resize(&mut self) -> HResult<()> {
+    fn resize(&mut self) -> WResult<()> {
         if let Ok(true) = self.get_core()?.screen()?.is_resized() {
             let (xsize, ysize) = self.get_core()?.screen()?.get_size()?;
             let mut coords = self.get_core()?.coordinates.clone();
@@ -589,7 +589,7 @@ fn input_thread(tx: Sender<Events>, rx_input_request: Receiver<()>) {
             input.map(|input| {
                 tx.send(Events::InputEvent(input)).unwrap();
                 rx_input_request.recv().unwrap();
-            }).map_err(|e| HError::from(e)).log();
+            }).map_err(|e| WError::from(e)).log();
         }
     });
 }

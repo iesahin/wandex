@@ -12,19 +12,19 @@ use crate::listview::{ListView, FileSource};
 use crate::textview::TextView;
 use crate::widget::{Widget, WidgetCore};
 use crate::coordinates::Coordinates;
-use crate::fail::{HResult, HError, ErrorLog};
+use crate::fail::{WResult, WError, ErrorLog};
 use crate::imgview::ImgView;
 use crate::mediaview::MediaView;
 
 
 pub type AsyncWidgetFn<W> = dyn FnOnce(&Stale, WidgetCore)
-                                       -> HResult<W> + Send + Sync;
+                                       -> WResult<W> + Send + Sync;
 
 lazy_static! {
     static ref SUBPROC: Arc<Mutex<Option<u32>>> = Arc::new(Mutex::new(None));
 }
 
-fn kill_proc() -> HResult<()> {
+fn kill_proc() -> WResult<()> {
     // Kill media previewer if it still runs
     ImgView::kill_running();
 
@@ -70,7 +70,7 @@ pub struct AsyncWidget<W: Widget + Send + 'static> {
 
 impl<W: Widget + Send + 'static> AsyncWidget<W> {
     pub fn new(core: &WidgetCore,
-               closure: impl FnOnce(&Stale) -> HResult<W> + Send + 'static)
+               closure: impl FnOnce(&Stale) -> WResult<W> + Send + 'static)
                -> AsyncWidget<W> {
         let sender = Arc::new(Mutex::new(core.get_sender()));
         let mut widget = Async::new(move |stale|
@@ -79,7 +79,7 @@ impl<W: Widget + Send + 'static> AsyncWidget<W> {
             if !stale.is_stale()? {
                 sender.lock()
                       .send(crate::widget::Events::WidgetReady)
-                      .map_err(HError::from)
+                      .map_err(WError::from)
                       .log();
             }
             Ok(())
@@ -95,8 +95,8 @@ impl<W: Widget + Send + 'static> AsyncWidget<W> {
     pub fn change_to(&mut self,
                      closure: impl FnOnce(&Stale,
                                           WidgetCore)
-                                          -> HResult<W> + Send + 'static)
-                     -> HResult<()> {
+                                          -> WResult<W> + Send + 'static)
+                     -> WResult<()> {
         self.set_stale().log();
 
         let sender = Mutex::new(self.get_core()?.get_sender());
@@ -110,7 +110,7 @@ impl<W: Widget + Send + 'static> AsyncWidget<W> {
             if !stale.is_stale()? {
                 sender.lock()
                       .send(crate::widget::Events::WidgetReady)
-                      .map_err(HError::from)
+                      .map_err(WError::from)
                       .log();
             }
             Ok(())
@@ -122,11 +122,11 @@ impl<W: Widget + Send + 'static> AsyncWidget<W> {
         Ok(())
     }
 
-    pub fn set_stale(&mut self) -> HResult<()> {
+    pub fn set_stale(&mut self) -> WResult<()> {
         Ok(self.widget.set_stale()?)
     }
 
-    pub fn is_stale(&self) -> HResult<bool> {
+    pub fn is_stale(&self) -> WResult<bool> {
         Ok(self.widget.is_stale()?)
     }
 
@@ -134,15 +134,15 @@ impl<W: Widget + Send + 'static> AsyncWidget<W> {
         self.widget.get_stale()
     }
 
-    pub fn widget(&self) -> HResult<&W> {
+    pub fn widget(&self) -> WResult<&W> {
         Ok(self.widget.get()?)
     }
 
-    pub fn widget_mut(&mut self) -> HResult<&mut W> {
+    pub fn widget_mut(&mut self) -> WResult<&mut W> {
         Ok(self.widget.get_mut()?)
     }
 
-    pub fn take_widget(self) -> HResult<W> {
+    pub fn take_widget(self) -> WResult<W> {
         Ok(self.widget.value?)
     }
 
@@ -154,14 +154,14 @@ impl<W: Widget + Send + 'static> AsyncWidget<W> {
 
 
 impl<T: Widget + Send + 'static> Widget for AsyncWidget<T> {
-    fn get_core(&self) -> HResult<&WidgetCore> {
+    fn get_core(&self) -> WResult<&WidgetCore> {
         Ok(&self.core)
     }
-    fn get_core_mut(&mut self) -> HResult<&mut WidgetCore> {
+    fn get_core_mut(&mut self) -> WResult<&mut WidgetCore> {
         Ok(&mut self.core)
     }
 
-    fn set_coordinates(&mut self, coordinates: &Coordinates) -> HResult<()> {
+    fn set_coordinates(&mut self, coordinates: &Coordinates) -> WResult<()> {
         self.core.coordinates = coordinates.clone();
         if let Ok(widget) = self.widget_mut() {
             widget.set_coordinates(&coordinates)?;
@@ -169,7 +169,7 @@ impl<T: Widget + Send + 'static> Widget for AsyncWidget<T> {
         Ok(())
     }
 
-    fn refresh(&mut self) -> HResult<()> {
+    fn refresh(&mut self) -> WResult<()> {
         self.widget.pull_async().ok();
 
         let coords = self.get_coordinates()?.clone();
@@ -183,7 +183,7 @@ impl<T: Widget + Send + 'static> Widget for AsyncWidget<T> {
         }
         Ok(())
     }
-    fn get_drawlist(&self) -> HResult<String> {
+    fn get_drawlist(&self) -> WResult<String> {
         if self.widget().is_err() {
             let clear = self.core.get_clearlist()?;
             let (xpos, ypos) = self.get_coordinates()?.u16position();
@@ -197,11 +197,11 @@ impl<T: Widget + Send + 'static> Widget for AsyncWidget<T> {
 
         self.widget()?.get_drawlist()
     }
-    fn on_key(&mut self, key: termion::event::Key) -> HResult<()> {
+    fn on_key(&mut self, key: termion::event::Key) -> WResult<()> {
         if self.widget().is_err() { return Ok(()) }
         self.widget_mut()?.on_key(key)
     }
-    fn render_footer(&self) -> HResult<String> {
+    fn render_footer(&self) -> WResult<String> {
         if self.widget().is_err() { return Ok(String::new()) }
         self.widget()?.render_footer()
     }
@@ -232,7 +232,7 @@ enum ExtPreviewer {
     Graphics(PathBuf)
 }
 
-fn find_previewer(file: &File, g_mode: bool) -> HResult<ExtPreviewer> {
+fn find_previewer(file: &File, g_mode: bool) -> WResult<ExtPreviewer> {
     let path = crate::paths::previewers_path()?;
     let ext = file.path.extension()?;
 
@@ -304,14 +304,14 @@ impl Previewer {
     }
 
     fn become_preview(&mut self,
-                      widget: HResult<AsyncWidget<PreviewWidget>>) -> HResult<()> {
+                      widget: WResult<AsyncWidget<PreviewWidget>>) -> WResult<()> {
         let coordinates = self.get_coordinates()?.clone();
         self.widget =  widget?;
         self.widget.set_coordinates(&coordinates)?;
         Ok(())
     }
 
-    pub fn set_stale(&mut self) -> HResult<()> {
+    pub fn set_stale(&mut self) -> WResult<()> {
         self.cancel_animation()?;
         self.widget.set_stale()
     }
@@ -320,17 +320,17 @@ impl Previewer {
         self.file.as_ref()
     }
 
-    pub fn cancel_animation(&self) -> HResult<()> {
+    pub fn cancel_animation(&self) -> WResult<()> {
         Ok(self.animator.set_stale()?)
     }
 
-    pub fn take_files(&mut self) -> HResult<Files> {
+    pub fn take_files(&mut self) -> WResult<Files> {
         match self.widget.widget_mut() {
             Ok(PreviewWidget::FileList(file_list)) => {
                 let files = std::mem::take(&mut file_list.content);
                 Ok(files)
             }
-            _ => HError::no_files()?
+            _ => WError::no_files()?
         }
     }
 
@@ -356,7 +356,7 @@ impl Previewer {
     }
 
     pub fn set_file(&mut self,
-                    file: &File) -> HResult<()> {
+                    file: &File) -> WResult<()> {
         if Some(file) == self.file.as_ref() && !self.widget.is_stale()? { return Ok(()) }
         self.widget.set_stale().ok();
 
@@ -386,7 +386,7 @@ impl Previewer {
                 // Delete files left by graphical PDF previews, etc.
                 if std::path::Path::new("/tmp/hunter-previews").exists() {
                     std::fs::remove_dir_all("/tmp/hunter-previews/")
-                        .map_err(HError::from)
+                        .map_err(WError::from)
                         .log();
                 }
 
@@ -470,8 +470,8 @@ impl Previewer {
     }
 
 
-    fn preview_failed<T>(file: &File) -> HResult<T> {
-        HError::preview_failed(file)
+    fn preview_failed<T>(file: &File) -> WResult<T> {
+        WError::preview_failed(file)
     }
 
     fn preview_dir(file: &File,
@@ -479,7 +479,7 @@ impl Previewer {
                    core: &WidgetCore,
                    stale: &Stale,
                    animator: &Stale)
-                   -> HResult<PreviewWidget> {
+                   -> WResult<PreviewWidget> {
         use crate::dirty::Dirtyable;
 
         if stale.is_stale()? { return Previewer::preview_failed(&file) }
@@ -504,7 +504,7 @@ impl Previewer {
                     core: &WidgetCore,
                     stale: &Stale,
                     animator: &Stale)
-                    -> HResult<PreviewWidget> {
+                    -> WResult<PreviewWidget> {
         // Show animation while text is loading
         let mut ticker = Ticker::start_ticking(core.get_sender());
 
@@ -527,7 +527,7 @@ impl Previewer {
         Ok(PreviewWidget::TextView(textview))
     }
 
-    fn run_external(cmd: PathBuf, file: &File, stale: &Stale) -> HResult<Vec<String>> {
+    fn run_external(cmd: PathBuf, file: &File, stale: &Stale) -> WResult<Vec<String>> {
         use std::os::unix::process::CommandExt;
 
         let process = unsafe {
@@ -576,7 +576,7 @@ impl Previewer {
                         core: &WidgetCore,
                         stale: &Stale,
                         animator: &Stale)
-                        -> HResult<PreviewWidget> {
+                        -> WResult<PreviewWidget> {
         // Show animation while preview is being generated
         let mut ticker = Ticker::start_ticking(core.get_sender());
 
@@ -614,14 +614,14 @@ impl Previewer {
 }
 
 impl Widget for Previewer {
-    fn get_core(&self) -> HResult<&WidgetCore> {
+    fn get_core(&self) -> WResult<&WidgetCore> {
         Ok(&self.core)
     }
-    fn get_core_mut(&mut self) -> HResult<&mut WidgetCore> {
+    fn get_core_mut(&mut self) -> WResult<&mut WidgetCore> {
         Ok(&mut self.core)
     }
 
-    fn config_loaded(&mut self) -> HResult<()> {
+    fn config_loaded(&mut self) -> WResult<()> {
         use PreviewWidget::*;
 
         let show_hidden = self.core
@@ -644,29 +644,29 @@ impl Widget for Previewer {
         Ok(())
     }
 
-    fn set_coordinates(&mut self, coordinates: &Coordinates) -> HResult<()> {
+    fn set_coordinates(&mut self, coordinates: &Coordinates) -> WResult<()> {
         self.core.coordinates = coordinates.clone();
         self.widget.set_coordinates(&coordinates)
     }
 
-    fn refresh(&mut self) -> HResult<()> {
+    fn refresh(&mut self) -> WResult<()> {
         self.widget.refresh()
     }
-    fn get_drawlist(&self) -> HResult<String> {
+    fn get_drawlist(&self) -> WResult<String> {
         self.widget.get_drawlist()
     }
 
-    fn render_footer(&self) -> HResult<String> {
+    fn render_footer(&self) -> WResult<String> {
         self.widget.render_footer()
     }
 
-    fn on_key(&mut self, key: Key) -> HResult<()> {
+    fn on_key(&mut self, key: Key) -> WResult<()> {
         self.widget.on_key(key)
     }
 }
 
 impl Widget for PreviewWidget {
-    fn get_core(&self) -> HResult<&WidgetCore> {
+    fn get_core(&self) -> WResult<&WidgetCore> {
         match self {
             PreviewWidget::FileList(widget) => widget.get_core(),
             PreviewWidget::TextView(widget) => widget.get_core(),
@@ -674,7 +674,7 @@ impl Widget for PreviewWidget {
             PreviewWidget::MediaView(widget) => widget.get_core()
         }
     }
-    fn get_core_mut(&mut self) -> HResult<&mut WidgetCore> {
+    fn get_core_mut(&mut self) -> WResult<&mut WidgetCore> {
         match self {
             PreviewWidget::FileList(widget) => widget.get_core_mut(),
             PreviewWidget::TextView(widget) => widget.get_core_mut(),
@@ -682,7 +682,7 @@ impl Widget for PreviewWidget {
             PreviewWidget::MediaView(widget) => widget.get_core_mut()
         }
     }
-    fn set_coordinates(&mut self, coordinates: &Coordinates) -> HResult<()> {
+    fn set_coordinates(&mut self, coordinates: &Coordinates) -> WResult<()> {
         match self {
             PreviewWidget::FileList(widget) => widget.set_coordinates(coordinates),
             PreviewWidget::TextView(widget) => widget.set_coordinates(coordinates),
@@ -690,7 +690,7 @@ impl Widget for PreviewWidget {
             PreviewWidget::MediaView(widget) => widget.set_coordinates(coordinates),
         }
     }
-    fn refresh(&mut self) -> HResult<()> {
+    fn refresh(&mut self) -> WResult<()> {
         match self {
             PreviewWidget::FileList(widget) => widget.refresh(),
             PreviewWidget::TextView(widget) => widget.refresh(),
@@ -698,7 +698,7 @@ impl Widget for PreviewWidget {
             PreviewWidget::MediaView(widget) => widget.refresh()
         }
     }
-    fn get_drawlist(&self) -> HResult<String> {
+    fn get_drawlist(&self) -> WResult<String> {
         match self {
             PreviewWidget::FileList(widget) => widget.get_drawlist(),
             PreviewWidget::TextView(widget) => widget.get_drawlist(),
@@ -707,7 +707,7 @@ impl Widget for PreviewWidget {
         }
     }
 
-    fn render_footer(&self) -> HResult<String> {
+    fn render_footer(&self) -> WResult<String> {
         match self {
             PreviewWidget::FileList(widget) => widget.render_footer(),
             PreviewWidget::TextView(widget) => widget.render_footer(),
@@ -716,7 +716,7 @@ impl Widget for PreviewWidget {
         }
     }
 
-    fn on_key(&mut self, key: Key) -> HResult<()> {
+    fn on_key(&mut self, key: Key) -> WResult<()> {
         match self {
             PreviewWidget::FileList(widget) => widget.on_key(key),
             PreviewWidget::TextView(widget) => widget.on_key(key),
@@ -728,19 +728,19 @@ impl Widget for PreviewWidget {
 
 
 impl<T> Widget for Box<T> where T: Widget + ?Sized {
-    fn get_core(&self) -> HResult<&WidgetCore> {
+    fn get_core(&self) -> WResult<&WidgetCore> {
         Ok((**self).get_core()?)
     }
-    fn get_core_mut(&mut self) -> HResult<&mut WidgetCore> {
+    fn get_core_mut(&mut self) -> WResult<&mut WidgetCore> {
         Ok((**self).get_core_mut()?)
     }
-    fn render_header(&self) -> HResult<String> {
+    fn render_header(&self) -> WResult<String> {
         (**self).render_header()
     }
-    fn refresh(&mut self) -> HResult<()> {
+    fn refresh(&mut self) -> WResult<()> {
         (**self).refresh()
     }
-    fn get_drawlist(&self) -> HResult<String> {
+    fn get_drawlist(&self) -> WResult<String> {
         (**self).get_drawlist()
     }
 }

@@ -6,7 +6,7 @@ use termion::event::Key;
 use crate::files::File;
 use crate::term::sized_string_u;
 use crate::widget::{Widget, WidgetCore};
-use crate::fail::{HResult, HError};
+use crate::fail::{WResult, WError};
 use crate::dirty::Dirtyable;
 
 
@@ -32,7 +32,7 @@ impl TextView {
         }
     }
 
-    pub fn new_from_file(core: &WidgetCore, file: &File) -> HResult<TextView> {
+    pub fn new_from_file(core: &WidgetCore, file: &File) -> WResult<TextView> {
         let mut view = TextView::new_from_file_limit_lines(core, file, 0)?;
         view.limited = false;
         Ok(view)
@@ -40,7 +40,7 @@ impl TextView {
 
     pub fn new_from_file_limit_lines(core: &WidgetCore,
                                      file: &File,
-                                     num: usize) -> HResult<TextView> {
+                                     num: usize) -> WResult<TextView> {
         let buf = std::fs::File::open(&file.path)
             .map(|f| std::io::BufReader::new(f))?;
 
@@ -48,15 +48,15 @@ impl TextView {
                        .enumerate()
                        .take_while(|(i, _)| num == 0 || i <= &num)
                        .map(|(_, l)| {
-                           l.map_err(HError::from)
+                           l.map_err(WError::from)
                             .and_then(|l| {
                                 let l = strip(&l);
                                 Ok(String::from_utf8_lossy(&l?).to_string())
                             })
-                            .map_err(HError::from)
+                            .map_err(WError::from)
 
                        })
-                       .collect::<HResult<_>>()?;
+                       .collect::<WResult<_>>()?;
 
         Ok(TextView {
             lines: lines,
@@ -68,7 +68,7 @@ impl TextView {
         })
     }
 
-    pub fn set_text(&mut self, text: &str) -> HResult<()> {
+    pub fn set_text(&mut self, text: &str) -> WResult<()> {
         let lines = text.lines().map(|l| l.to_string()).collect();
         self.lines = lines;
         self.limited = false;
@@ -77,7 +77,7 @@ impl TextView {
         self.refresh()
     }
 
-    pub fn set_lines(&mut self, lines: Vec<String>) -> HResult<()> {
+    pub fn set_lines(&mut self, lines: Vec<String>) -> WResult<()> {
         self.lines = lines;
         self.limited = false;
         self.file = None;
@@ -159,13 +159,13 @@ impl TextView {
 }
 
 impl Widget for TextView {
-    fn get_core(&self) -> HResult<&WidgetCore> {
+    fn get_core(&self) -> WResult<&WidgetCore> {
         Ok(&self.core)
     }
-    fn get_core_mut(&mut self) -> HResult<&mut WidgetCore> {
+    fn get_core_mut(&mut self) -> WResult<&mut WidgetCore> {
         Ok(&mut self.core)
     }
-    fn refresh(&mut self) -> HResult<()> {
+    fn refresh(&mut self) -> WResult<()> {
         // let (xsize, ysize) = self.get_coordinates()?.size().size();
         // let (xpos, ypos) = self.get_coordinates()?.position().position();
         // let len = self.lines.len();
@@ -180,7 +180,7 @@ impl Widget for TextView {
         Ok(())
     }
 
-    fn get_drawlist(&self) -> HResult<String> {
+    fn get_drawlist(&self) -> WResult<String> {
         let (xsize, ysize) = self.get_coordinates()?.size().size();
         let (xpos, ypos) = self.get_coordinates()?.position().position();
 
@@ -201,7 +201,7 @@ impl Widget for TextView {
         Ok(output)
     }
 
-    fn render_footer(&self) -> HResult<String> {
+    fn render_footer(&self) -> WResult<String> {
         let (xsize, ysize) = self.core.coordinates.size_u();
         let (_, ypos) = self.core.coordinates.position_u();
         let lines = self.lines.len();
@@ -222,7 +222,7 @@ impl Widget for TextView {
         Ok(footer)
     }
 
-    fn on_key(&mut self, key: Key) -> HResult<()> {
+    fn on_key(&mut self, key: Key) -> WResult<()> {
         self.do_key(key)
     }
 }
@@ -236,7 +236,7 @@ impl Acting for TextView {
         Bindings::default()
     }
 
-    fn movement(&mut self, movement: &Movement) -> HResult<()> {
+    fn movement(&mut self, movement: &Movement) -> WResult<()> {
         use Movement::*;
 
         self.load_full();
@@ -254,7 +254,7 @@ impl Acting for TextView {
         Ok(())
     }
 
-    fn do_action(&mut self, _action: &Self::Action) -> HResult<()> {
+    fn do_action(&mut self, _action: &Self::Action) -> WResult<()> {
         Ok(())
     }
 }

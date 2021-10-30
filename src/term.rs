@@ -9,7 +9,7 @@ use parse_ansi::parse_bytes;
 use crate::unicode_width::{UnicodeWidthStr, UnicodeWidthChar};
 use parking_lot::{Mutex, RwLock};
 
-use crate::fail::{HResult, ErrorLog};
+use crate::fail::{WResult, ErrorLog};
 use crate::trait_ext::ExtractResult;
 
 pub type TermMode = AlternateScreen<RawTerminal<BufWriter<Stdout>>>;
@@ -22,7 +22,7 @@ pub struct Screen {
 }
 
 impl Screen {
-    pub fn new() -> HResult<Screen> {
+    pub fn new() -> WResult<Screen> {
         let screen = BufWriter::new(std::io::stdout()).into_raw_mode()?;
         let mut screen = AlternateScreen::from(screen);
         let terminal = std::env::var("TERM").unwrap_or("xterm".into());
@@ -35,27 +35,27 @@ impl Screen {
         })
     }
 
-    pub fn set_size(&self, size: (usize, usize)) -> HResult<()> {
+    pub fn set_size(&self, size: (usize, usize)) -> WResult<()> {
         *self.size.write() = Some(size);
         Ok(())
     }
 
-    pub fn is_resized(&self) -> HResult<bool> {
+    pub fn is_resized(&self) -> WResult<bool> {
         Ok(self.size.read().is_some())
     }
 
-    pub fn get_size(&self) -> HResult<(usize, usize)> {
+    pub fn get_size(&self) -> WResult<(usize, usize)> {
         match self.size.read().clone() {
             Some((xsize, ysize)) => Ok((xsize, ysize)),
             None => Ok((self.xsize()?, self.ysize()?))
         }
     }
 
-    pub fn take_size(&self) -> HResult<(usize, usize)> {
+    pub fn take_size(&self) -> WResult<(usize, usize)> {
         Ok(self.size.write().take()?)
     }
 
-    pub fn set_title(&mut self, title: &str) -> HResult<()> {
+    pub fn set_title(&mut self, title: &str) -> WResult<()> {
         if self.terminal.starts_with("xterm") ||
             self.terminal.starts_with("screen") ||
             self.terminal.starts_with("tmux"){
@@ -82,67 +82,67 @@ impl Write for Screen {
 }
 
 pub trait ScreenExt: Write {
-    fn suspend_raw_mode(&mut self) -> HResult<()>;
-    fn activate_raw_mode(&mut self) -> HResult<()>;
-    fn suspend(&mut self) -> HResult<()> {
+    fn suspend_raw_mode(&mut self) -> WResult<()>;
+    fn activate_raw_mode(&mut self) -> WResult<()>;
+    fn suspend(&mut self) -> WResult<()> {
         self.cursor_show().log();
         self.suspend_raw_mode().log();
         self.to_main_screen()
     }
-    fn activate(&mut self) -> HResult<()> {
+    fn activate(&mut self) -> WResult<()> {
         self.cursor_hide().log();
         self.activate_raw_mode().log();
         self.to_alternate_screen()
     }
-    fn cursor_hide(&mut self) -> HResult<()> {
+    fn cursor_hide(&mut self) -> WResult<()> {
         write!(self, "{}", termion::cursor::Hide)?;
         self.flush()?;
         Ok(())
     }
-    fn cursor_show(&mut self) -> HResult<()> {
+    fn cursor_show(&mut self) -> WResult<()> {
         write!(self, "{}", termion::cursor::Show)?;
         self.flush()?;
         Ok(())
     }
-    fn reset(&mut self) -> HResult<()> {
+    fn reset(&mut self) -> WResult<()> {
         write!(self, "{}", termion::style::Reset)?;
         Ok(())
     }
-    fn clear(&mut self) -> HResult<()> {
+    fn clear(&mut self) -> WResult<()> {
         write!(self, "{}{}",
                termion::style::Reset,
                termion::clear::All)?;
         Ok(())
     }
-    fn write_str(&mut self, str: &str) -> HResult<()> {
+    fn write_str(&mut self, str: &str) -> WResult<()> {
         write!(self, "{}", str)?;
         Ok(())
     }
-    fn goto_xy(&mut self, x: usize, y: usize) -> HResult<()> {
+    fn goto_xy(&mut self, x: usize, y: usize) -> WResult<()> {
         let x = x as u16;
         let y = y as u16;
         write!(self, "{}", goto_xy(x + 1, y + 1))?;
         Ok(())
     }
-    fn size(&self) -> HResult<(usize, usize)> {
+    fn size(&self) -> WResult<(usize, usize)> {
         let (xsize, ysize) = termion::terminal_size()?;
         Ok(((xsize-1) as usize, (ysize-1) as usize))
     }
 
-    fn xsize(&self) -> HResult<usize> {
+    fn xsize(&self) -> WResult<usize> {
         let (xsize, _) = termion::terminal_size()?;
         Ok((xsize - 1) as usize)
     }
-    fn ysize(&self) -> HResult<usize> {
+    fn ysize(&self) -> WResult<usize> {
         let (_, ysize) = termion::terminal_size()?;
         Ok((ysize - 1) as usize)
     }
-    fn to_main_screen(&mut self) -> HResult<()> {
+    fn to_main_screen(&mut self) -> WResult<()> {
         write!(self, "{}", termion::screen::ToMainScreen)?;
         self.flush()?;
         Ok(())
     }
-    fn to_alternate_screen(&mut self) -> HResult<()> {
+    fn to_alternate_screen(&mut self) -> WResult<()> {
         write!(self, "{}", termion::screen::ToAlternateScreen)?;
         self.flush()?;
         Ok(())
@@ -150,13 +150,13 @@ pub trait ScreenExt: Write {
 }
 
 impl ScreenExt for Screen {
-    fn suspend_raw_mode(&mut self) -> HResult<()> {
+    fn suspend_raw_mode(&mut self) -> WResult<()> {
         self.screen
             .lock()
             .suspend_raw_mode()
     }
 
-    fn activate_raw_mode(&mut self) -> HResult<()> {
+    fn activate_raw_mode(&mut self) -> WResult<()> {
         self.screen
             .lock()
             .activate_raw_mode()
@@ -164,11 +164,11 @@ impl ScreenExt for Screen {
 }
 
 impl ScreenExt for TermMode {
-    fn suspend_raw_mode(&mut self) -> HResult<()> {
+    fn suspend_raw_mode(&mut self) -> WResult<()> {
         Ok(RawTerminal::suspend_raw_mode(self)?)
     }
 
-    fn activate_raw_mode(&mut self) -> HResult<()> {
+    fn activate_raw_mode(&mut self) -> WResult<()> {
         Ok(RawTerminal::activate_raw_mode(self)?)
     }
 }
@@ -196,17 +196,17 @@ pub fn ysize() -> u16 {
     ysize
 }
 
-pub fn size() -> HResult<(usize, usize)> {
+pub fn size() -> WResult<(usize, usize)> {
     let (xsize, ysize) = termion::terminal_size()?;
     Ok(((xsize-1) as usize, (ysize-1) as usize))
 }
 
-pub fn size_pixels() -> HResult<(usize, usize)> {
+pub fn size_pixels() -> WResult<(usize, usize)> {
     let (xsize, ysize) = termion::terminal_size_pixels()?;
     Ok((xsize as usize, ysize as usize))
 }
 
-pub fn cell_ratio() -> HResult<f32> {
+pub fn cell_ratio() -> WResult<f32> {
     let (xsize, ysize) = size()?;
     let (xpix, ypix) = size_pixels()?;
 

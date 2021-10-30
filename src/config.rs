@@ -5,7 +5,7 @@ use std::sync::RwLock;
 
 use crate::paths;
 
-use crate::fail::{HError, HResult, ErrorLog};
+use crate::fail::{WError, WResult, ErrorLog};
 use crate::keybind::KeyBinds;
 
 
@@ -34,7 +34,7 @@ lazy_static! {
 }
 
 
-pub fn set_argv_config(args: clap::ArgMatches) -> HResult<()> {
+pub fn set_argv_config(args: clap::ArgMatches) -> WResult<()> {
     let animation = args.is_present("animation-off");
     let show_hidden = args.is_present("show-hidden");
     let icons = args.is_present("icons");
@@ -65,7 +65,7 @@ pub fn set_argv_config(args: clap::ArgMatches) -> HResult<()> {
     Ok(())
 }
 
-fn get_argv_config() -> HResult<ArgvConfig> {
+fn get_argv_config() -> WResult<ArgvConfig> {
         Ok(ARGV_CONFIG.try_read()?.clone())
 }
 
@@ -125,7 +125,7 @@ impl Config {
         }
     }
 
-    pub fn load() -> HResult<Config> {
+    pub fn load() -> WResult<Config> {
         let config_path = paths::config_path()?;
 
         if !config_path.exists() {
@@ -141,7 +141,7 @@ impl Config {
                 Ok(("animation_refresh_frequency", frequency)) => {
                     match frequency.parse::<usize>() {
                         Ok(parsed_freq) => config.animation_refresh_frequency = parsed_freq,
-                        _ => HError::config_error::<Config>(line.to_string()).log()
+                        _ => WError::config_error::<Config>(line.to_string()).log()
                     }
                 }
                 Ok(("show_hidden", "on")) => config.show_hidden = true,
@@ -191,7 +191,7 @@ impl Config {
                     "kitty")) => config.graphics = "kitty".to_string(),
                 Ok(("graphics",
                     "auto")) => config.graphics = detect_g_mode(),
-                _ => { HError::config_error::<Config>(line.to_string()).log(); }
+                _ => { WError::config_error::<Config>(line.to_string()).log(); }
             }
 
             #[cfg(feature = "img")]
@@ -212,12 +212,12 @@ impl Config {
         Ok(config)
     }
 
-    fn prep_line<'a>(line: &'a str) -> HResult<(&'a str, &'a str)> {
+    fn prep_line<'a>(line: &'a str) -> WResult<(&'a str, &'a str)> {
         let setting = line.split("=").collect::<Vec<&str>>();
         if setting.len() == 2 {
             Ok((setting[0], setting[1]))
         } else {
-            HError::config_error(line.to_string())
+            WError::config_error(line.to_string())
         }
 
     }
